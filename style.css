@@ -23,8 +23,7 @@ body {
   line-height: 1.5;
 }
 
-/* numeros alinhados so onde ha numeros (no texto corrido a pontuacao ficava esticada) */
-.num, .eixo, .dica b, td.num { font-variant-numeric: tabular-nums; }
+/* (sem tabular-nums: nesta letra ele estica a virgula e o ponto) */
 
 .pagina { max-width: 860px; margin: 0 auto; padding: 40px 16px 64px; }
 

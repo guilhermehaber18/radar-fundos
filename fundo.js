@@ -141,7 +141,11 @@ function desenharGraficos(dias, alertasPeriodo) {
   const mE = 64, mD = 10;                       // margens esquerda e direita
   const passo = (largura - mE - mD) / (dias.length - 1);
   const xDe = (i) => mE + i * passo;
-  const datasAlerta = new Map(alertasPeriodo.map((a) => [a.data, a]));
+  const datasAlerta = new Map();                 // dia -> lista de alertas daquele dia
+  for (const a of alertasPeriodo) {
+    if (!datasAlerta.has(a.data)) datasAlerta.set(a.data, []);
+    datasAlerta.get(a.data).push(a);
+  }
 
   // marcas de mes no eixo de baixo (umas 5, espalhadas)
   const marcas = [];
@@ -174,11 +178,12 @@ function desenharGraficos(dias, alertasPeriodo) {
       <line x1="${mE}" x2="${largura - mD}" y1="${y(v)}" y2="${y(v)}" stroke="${COR.grade}" stroke-width="1"/>
       <text x="${mE - 8}" y="${y(v) + 4}" text-anchor="end" class="eixo">${g.fmt(v)}</text>`).join("");
 
+    // um ponto por alerta; se o dia tem entrada E saida fora do normal, os dois aparecem empilhados
     const pontos = g.alertas ? dias.map((d, i) => {
-      const a = datasAlerta.get(d.data);
-      if (!a || d[g.campo] == null) return "";
-      return `<circle cx="${xDe(i)}" cy="${y(d[g.campo])}" r="5" fill="${eSaida(a) ? COR.saida : COR.entrada}"
-        stroke="${COR.papel}" stroke-width="2"/>`;
+      const lista = datasAlerta.get(d.data);
+      if (!lista || d[g.campo] == null) return "";
+      return lista.map((a, k) => `<circle cx="${xDe(i)}" cy="${y(d[g.campo]) - k * 12}" r="5"
+        fill="${eSaida(a) ? COR.saida : COR.entrada}" stroke="${COR.papel}" stroke-width="2"/>`).join("");
     }).join("") : "";
 
     document.getElementById(g.id).innerHTML = `
@@ -251,7 +256,7 @@ function mostrarMira(i, ancora) {
     }
   }
 
-  const alerta = fundoAtual.alertas.find((a) => a.data === d.data);
+  const alertasDoDia = fundoAtual.alertas.filter((a) => a.data === d.data);
   const dica = document.getElementById("dica");
   dica.innerHTML = `
     <p class="dica-dia">${dataBR(d.data)}</p>
@@ -259,7 +264,7 @@ function mostrarMira(i, ancora) {
     <p><b class="num">${numero(d.cota, 4)}</b> cota</p>
     <p><i class="chave entrada"></i><b class="num">${reais(d.captacao)}</b> entradas</p>
     <p><i class="chave saida"></i><b class="num">${reais(d.resgate)}</b> saídas</p>
-    ${alerta ? `<p class="dica-alerta">${protegido(alerta.mensagem)}</p>` : ""}`;
+    ${alertasDoDia.map((a) => `<p class="dica-alerta">${protegido(a.mensagem)}</p>`).join("")}`;
   dica.hidden = false;
 
   // posiciona a caixinha perto do ponto, sem sair da tela
