@@ -10,6 +10,7 @@ import io, os, re, sys, unicodedata, zipfile
 from datetime import date
 import pandas as pd
 import requests
+from alertas import gerar_alertas
 
 # ---------- CONFIGURACAO ----------
 CVM = "https://dados.cvm.gov.br/dados/FI"
@@ -66,6 +67,12 @@ def enviar(tabela, linhas, chave_unica):
         if r.status_code >= 300:
             raise RuntimeError(f"Supabase recusou ({r.status_code}): {r.text[:300]}")
     print(f"  {tabela}: {len(linhas)} linhas enviadas")
+
+def apagar(tabela, filtro):  # ex.: apagar("alertas", "data=gte.2026-08-01")
+    url = os.environ["SUPABASE_URL"].rstrip("/") + f"/rest/v1/{tabela}?{filtro}"
+    r = requests.delete(url, headers={"apikey": os.environ["SUPABASE_SECRET_KEY"]}, timeout=120)
+    if r.status_code >= 300:
+        raise RuntimeError(f"Supabase recusou ({r.status_code}): {r.text[:300]}")
 
 def para_linhas(df):  # tabela do pandas -> lista de dicionarios (vazio vira null)
     return df.astype(object).where(df.notna(), None).to_dict(orient="records")
@@ -131,5 +138,10 @@ if __name__ == "__main__":
 
     informes = ler_informes(set(radar["cnpj"]))
     enviar("informes", para_linhas(informes), "cnpj,subclasse,data")
+
+    alertas = gerar_alertas(informes, radar)
+    # apaga os alertas antigos do periodo e grava os novos (assim, se a regra mudar, tudo se atualiza)
+    apagar("alertas", f"data=gte.{informes['data'].min()}")
+    enviar("alertas", para_linhas(alertas), "cnpj,data,tipo")
 
     print("Pronto! Coleta concluida.")
