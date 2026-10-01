@@ -22,7 +22,8 @@ module.exports = async (req, res) => {
       p.append("cnpj", `like.*${numeros}*`);            // procurando por CNPJ
     } else {
       const palavras = texto.replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter(Boolean).slice(0, 5);
-      for (const palavra of palavras) p.append("busca", `ilike.*${palavra}*`);  // todas as palavras
+      // todas as palavras precisam aparecer: and=(busca tem A, busca tem B)
+      if (palavras.length) p.append("and", `(${palavras.map((w) => `busca.ilike.*${w}*`).join(",")})`);
     }
     if (GRUPOS.includes(grupo)) p.append("grupo", `eq.${grupo}`);
     p.set("order", "patrimonio.desc.nullslast");
