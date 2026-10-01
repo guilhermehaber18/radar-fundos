@@ -226,3 +226,19 @@ body {
 /* Dia 9: tabelas de comparacao cabem na tela (titulos e nomes podem quebrar linha) */
 .tabela-comparar th { white-space: normal; vertical-align: bottom; }
 .tabela-comparar td:first-child { white-space: normal; min-width: 150px; }
+
+/* Dia 10: a IA comentarista */
+.explicacao { margin: 24px 0 8px; padding: 16px 18px; background: #fff; border: 1px solid var(--linha); border-radius: 8px; }
+.explicacao h3 { margin: 0 0 10px; font-size: 17px; }
+.botao-explicar { font: inherit; font-size: 15px; font-weight: 500; color: #fff; background: var(--tinta); border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+.botao-explicar:hover { background: var(--btg); }
+.botao-explicar:focus-visible { outline: 3px solid var(--btg); outline-offset: 2px; }
+.texto-ia { margin: 0 0 14px; font-size: 17px; line-height: 1.55; max-width: 68ch; }
+.conta { border-collapse: collapse; font-size: 15px; margin-bottom: 8px; }
+.conta td { padding: 4px 0; }
+.conta td:last-child { text-align: right; padding-left: 32px; font-weight: 700; white-space: nowrap; }
+.conta tr.total td { border-top: 1px solid var(--tinta); padding-top: 8px; }
+.origem-ia { margin: 10px 0 0; font-size: 13px; color: var(--cinza); max-width: 70ch; }
+.ficha { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 14px; }
+.ficha span { color: var(--cinza); }
+.explicacao .tabela { margin-top: 10px; }

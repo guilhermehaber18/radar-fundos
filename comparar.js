@@ -189,13 +189,18 @@ function desenharComparar() {
     <div class="rolagem tabela-comparar"><table>
       <thead><tr><th>Fundo</th><th>Patrimônio</th><th>Rendimento</th><th>Patrimônio no período</th><th>Entradas menos saídas</th><th>Cotistas</th></tr></thead>
       <tbody>${linhasTabela}</tbody>
-    </table></div>`;
+    </table></div>
+    ${fundos.length >= 2 ? `<section class="explicacao" id="explicacao-comparar">
+      <h3>O que a comparação mostra</h3>
+      <button id="botao-explicar-comparar" class="botao-explicar">Comparar com IA</button>
+    </section>` : ""}`;
 
   const fmt100 = (v) => numero(v, 1);
   graficoLinhas("g-comp-cota", cortados.map((f) => ({ nome: f.fundo.nome, curto: curto(f.fundo.nome), cor: f.cor, pontos: base100(f, "cota") })), fmt100, { referencia: 100 });
   graficoLinhas("g-comp-pl", cortados.map((f) => ({ nome: f.fundo.nome, curto: curto(f.fundo.nome), cor: f.cor, pontos: base100(f, "patrimonio") })), fmt100, { referencia: 100 });
 
   ligarBotoes("periodo-comparar", (b) => { periodoComparar = b.dataset.periodo; desenharComparar(); });
+  document.getElementById("botao-explicar-comparar")?.addEventListener("click", explicarComparacao);
   tela.querySelectorAll(".tirar").forEach((b) =>
     b.addEventListener("click", () => mudarComparacao(comparados.filter((c) => c !== b.dataset.cnpj))));
   ligarBuscaComparar();
@@ -291,4 +296,39 @@ function desenharRivais() {
 
   graficoLinhas("g-rivais", grupos.map((x) => ({ nome: NOME_GRUPO[x.g], cor: COR_GRUPO[x.g], pontos: x.pontos })), reais, { referencia: 0 });
   ligarBotoes("periodo-rivais", (b) => { periodoRivais = b.dataset.periodo; desenharRivais(); });
+}
+
+// ---------- A IA COMENTANDO A COMPARACAO ----------
+async function explicarComparacao() {
+  const caixa = document.getElementById("explicacao-comparar");
+  const titulo = caixa.querySelector("h3").outerHTML;
+  const lista = comparados.join(","), periodoPedido = periodoComparar;
+  caixa.innerHTML = titulo + `<p class="info">Calculando os números e escrevendo o relatório…</p>`;
+  try {
+    const r = await fetch(`/api/explicar?cnpjs=${lista}&periodo=${periodoPedido}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro || `erro ${r.status}`);
+    if (comparados.join(",") !== lista || periodoComparar !== periodoPedido) return;     // a pessoa ja mudou a comparacao
+    const paragrafos = d.texto.split(/\n\s*\n/).map((p) => `<p class="texto-ia">${protegido(p.trim())}</p>`).join("");
+    const extra = Array.isArray(d.fatos) ? `
+      <div class="rolagem tabela-comparar"><table>
+        <thead><tr><th>Fundo</th><th>Oscilação típica por dia</th><th>Dias com cota em queda</th><th>Melhor mês</th><th>Pior mês</th><th>Alertas</th></tr></thead>
+        <tbody>${d.fatos.map((f) => `<tr><td>${protegido(f.fundo.length > 38 ? f.fundo.slice(0, 36) + "…" : f.fundo)}</td>
+          <td>${f.oscilacao_diaria_tipica_pct != null ? numero(f.oscilacao_diaria_tipica_pct * 100, 2) + "%" : "–"}</td>
+          <td>${numero(f.dias_com_cota_em_queda)}</td>
+          <td>${f.melhor_mes_da_cota ? pct(f.melhor_mes_da_cota.rendimento_pct) + ` <span class="data-pequena">${mesCurto(f.melhor_mes_da_cota.mes + "-01")}</span>` : "–"}</td>
+          <td>${f.pior_mes_da_cota ? pct(f.pior_mes_da_cota.rendimento_pct) + ` <span class="data-pequena">${mesCurto(f.pior_mes_da_cota.mes + "-01")}</span>` : "–"}</td>
+          <td>${numero(f.alertas_no_periodo)}</td></tr>`).join("")}</tbody>
+      </table></div>
+      ${d.fatos[0].cdi_pct != null ? `<p class="info">CDI no mesmo período: ${pct(d.fatos[0].cdi_pct)}.</p>` : ""}` : "";
+    const origem = d.comIA
+      ? "Texto escrito por IA (Gemini) só com os números das tabelas. Pode conter erros: confira nas tabelas. Não é recomendação de investimento."
+      : "Resumo automático com os números das tabelas (a IA não respondeu agora).";
+    caixa.innerHTML = titulo + paragrafos + extra + `<p class="origem-ia">${origem}</p>`;
+    if (d.aviso) console.log("IA indisponível:", d.aviso);
+  } catch (erro) {
+    caixa.innerHTML = titulo + `<p class="erro">Não consegui gerar o relatório (${protegido(erro.message)}).</p>
+      <button id="botao-explicar-comparar" class="botao-explicar">Tentar de novo</button>`;
+    document.getElementById("botao-explicar-comparar").addEventListener("click", explicarComparacao);
+  }
 }

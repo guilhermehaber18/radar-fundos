@@ -1,0 +1,5 @@
+{
+  "functions": {
+    "api/explicar.js": { "maxDuration": 30 }
+  }
+}

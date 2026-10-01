@@ -94,7 +94,13 @@ def montar_lista():
 
     radar["cnpj"] = radar["CNPJ_Classe"].map(so_numeros)
     radar = radar.rename(columns={"Gestor": "gestor", "Denominacao_Social": "nome"})
-    radar = radar[["cnpj", "grupo", "gestor", "nome"]].drop_duplicates("cnpj")
+    # ficha do fundo (vem do cadastro da CVM): usada pela IA para dizer o que o fundo e
+    ficha = {"Tipo_Classe": "tipo_classe", "Classificacao": "classificacao", "Classificacao_Anbima": "classificacao_anbima",
+             "Publico_Alvo": "publico_alvo", "Indicador_Desempenho": "indicador_desempenho",
+             "Forma_Condominio": "forma_condominio", "Data_Inicio": "data_inicio"}
+    for original, novo in ficha.items():
+        radar[novo] = radar[original] if original in radar else None
+    radar = radar[["cnpj", "grupo", "gestor", "nome"] + list(ficha.values())].drop_duplicates("cnpj")
     # texto de busca sem acentos: "BTG PACTUAL ... ITAU ..." (para a aba Pesquisa)
     radar["busca"] = (radar["nome"].fillna("") + " " + radar["gestor"].fillna("") + " " + radar["grupo"]).map(limpar)
     print(f"Lista do Radar: {len(radar)} fundos")

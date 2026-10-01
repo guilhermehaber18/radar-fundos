@@ -100,6 +100,10 @@ function desenharFundo() {
         <dd class="num nota">${pct(varCot)} em ${nomePeriodo}</dd></div>
     </dl>
 
+    <section class="explicacao" id="explicacao">
+      <h3>O fundo em poucas palavras</h3>
+    </section>
+
     <div class="graficos" id="graficos" tabindex="0"
          aria-label="Gráficos da jornada do fundo. Use as setas para ver dia a dia.">
       <figure><figcaption>Patrimônio <span>os pontos marcam os alertas</span></figcaption><div id="g-pl"></div></figure>
@@ -129,6 +133,7 @@ function desenharFundo() {
     </section>`;
 
   ligarBotoes("periodo", (b) => { periodo = b.dataset.periodo; desenharFundo(); });
+  explicar();                              // a IA comeca a escrever assim que a pagina abre
   indiceMira = null;
   desenharGraficos(dias, alertasPeriodo);
 }
@@ -347,3 +352,48 @@ window.addEventListener("resize", () => {
     }
   }, 200);
 });
+
+// ---------- A IA COMENTARISTA ----------
+async function explicar() {
+  const caixa = document.getElementById("explicacao");
+  const titulo = caixa.querySelector("h3").outerHTML;
+  const cnpj = fundoAtual.fundo.cnpj, periodoPedido = periodo;
+  caixa.innerHTML = titulo + `<p class="info">A IA está lendo os números e escrevendo o resumo…</p>`;
+  try {
+    const r = await fetch(`/api/explicar?cnpj=${cnpj}&periodo=${periodoPedido}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro || `erro ${r.status}`);
+    if (!fundoAtual || fundoAtual.fundo.cnpj !== cnpj || periodo !== periodoPedido) return;   // a pessoa ja mudou de tela
+    const f = d.fatos;
+    const paragrafos = d.texto.split(/\n\s*\n/).map((p) => `<p class="texto-ia">${protegido(p.trim())}</p>`).join("");
+    const c = f?.cadastro || {};
+    const ficha = [["Tipo", c.classificacao_anbima || c.classificacao_cvm || c.tipo], ["Público", c.publico_alvo],
+      ["Referência", c.indicador_de_referencia], ["Forma", c.forma], ["Início", c.inicio_do_fundo && dataBR(c.inicio_do_fundo)]]
+      .filter(([, v]) => v).map(([k, v]) => `<li><span>${k}</span> ${protegido(v)}</li>`).join("");
+    const conta = f ? `
+      ${ficha ? `<ul class="ficha">${ficha}</ul>` : ""}
+      <table class="conta">
+        <tr><td>Patrimônio em ${dataBR(f.data_inicial)}</td><td>${reais(f.patrimonio_inicial)}</td></tr>
+        <tr><td>+ Dinheiro que entrou</td><td>${reais(f.entradas)}</td></tr>
+        <tr><td>− Dinheiro que saiu</td><td>${reais(f.saidas)}</td></tr>
+        <tr><td>${f.efeito_rendimento >= 0 ? "+" : "−"} Rendimento dos investimentos</td><td>${reais(Math.abs(f.efeito_rendimento))}</td></tr>
+        <tr class="total"><td>Patrimônio em ${dataBR(f.data_final)}</td><td>${reais(f.patrimonio_final)}</td></tr>
+      </table>
+      <p class="info">Cota: ${pct(f.rendimento_cota_pct)}${f.cdi_pct != null ? `. CDI no mesmo período: ${pct(f.cdi_pct)}` : ""}.</p>
+      <details class="tabela"><summary>Ver mês a mês</summary>
+        <div class="rolagem tabela-comparar"><table>
+          <thead><tr><th>Mês</th><th>Rendimento da cota</th><th>Entradas menos saídas</th><th>Patrimônio no fim</th><th>Alertas</th></tr></thead>
+          <tbody>${(f.mes_a_mes || []).map((m) => `<tr><td>${mesCurto(m.mes + "-01")}</td><td>${pct(m.rendimento_cota_pct)}</td>
+            <td>${reais(m.entradas_menos_saidas)}</td><td>${reais(m.patrimonio_no_fim)}</td><td>${numero(m.alertas)}</td></tr>`).join("")}</tbody>
+        </table></div></details>` : "";
+    const origem = d.comIA
+      ? "Texto escrito por IA (Gemini) com a ficha da CVM e os números abaixo. Pode conter erros: confira nos números. Os dados não dizem o motivo das entradas e saídas, e isto não é recomendação de investimento."
+      : "Resumo automático com os números abaixo (a IA não respondeu agora).";
+    caixa.innerHTML = titulo + paragrafos + conta + `<p class="origem-ia">${origem}</p>`;
+    if (d.aviso) console.log("IA indisponível:", d.aviso);
+  } catch (erro) {
+    caixa.innerHTML = titulo + `<p class="erro">Não consegui gerar a explicação (${protegido(erro.message)}).</p>
+      <button id="botao-explicar" class="botao-explicar">Tentar de novo</button>`;
+    document.getElementById("botao-explicar").addEventListener("click", explicar);
+  }
+}
