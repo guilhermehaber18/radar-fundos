@@ -10,7 +10,7 @@ import io, os, re, sys, unicodedata, zipfile
 from datetime import date
 import pandas as pd
 import requests
-from alertas import gerar_alertas
+from alertas import gerar_alertas, um_por_dia
 
 # ---------- CONFIGURACAO ----------
 CVM = "https://dados.cvm.gov.br/dados/FI"
@@ -94,6 +94,8 @@ def montar_lista():
     radar["cnpj"] = radar["CNPJ_Classe"].map(so_numeros)
     radar = radar.rename(columns={"Gestor": "gestor", "Denominacao_Social": "nome"})
     radar = radar[["cnpj", "grupo", "gestor", "nome"]].drop_duplicates("cnpj")
+    # texto de busca sem acentos: "BTG PACTUAL ... ITAU ..." (para a aba Pesquisa)
+    radar["busca"] = (radar["nome"].fillna("") + " " + radar["gestor"].fillna("") + " " + radar["grupo"]).map(limpar)
     print(f"Lista do Radar: {len(radar)} fundos")
     return radar
 
@@ -107,7 +109,8 @@ def ler_informes(cnpjs_do_radar):
             print(f"  Mes {mes} ainda nao publicado, pulando")
             continue
         df = ler_csv(pacote, pacote.namelist()[0], keep_default_na=False)
-        df["cnpj"] = df["CNPJ_FUNDO_CLASSE"].map(so_numeros)
+        coluna_cnpj = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df else "CNPJ_FUNDO"  # arquivos antigos
+        df["cnpj"] = df[coluna_cnpj].map(so_numeros)
         partes.append(df[df["cnpj"].isin(cnpjs_do_radar)])
 
     inf = pd.concat(partes)
@@ -127,6 +130,13 @@ def ler_informes(cnpjs_do_radar):
     print(f"Informes encontrados: {len(inf)} linhas, ultima data {inf['data'].max()}")
     return inf
 
+# ---------- PARTE 3: ULTIMA FOTO DE CADA FUNDO ----------
+def juntar_ultima_foto(radar, informes):
+    # pega o patrimonio do dia mais recente de cada fundo (para ordenar a pesquisa)
+    ultimo = um_por_dia(informes).groupby("cnpj").tail(1)[["cnpj", "data", "patrimonio"]]
+    ultimo = ultimo.rename(columns={"data": "data_pl"})
+    return radar.merge(ultimo, on="cnpj", how="left")
+
 # ---------- O ROBO TRABALHANDO ----------
 if __name__ == "__main__":
     for nome in ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]:
@@ -134,9 +144,10 @@ if __name__ == "__main__":
             sys.exit(f"ERRO: falta a chave {nome}. Use: set {nome}=...")
 
     radar = montar_lista()
-    enviar("fundos", para_linhas(radar), "cnpj")
-
     informes = ler_informes(set(radar["cnpj"]))
+    radar = juntar_ultima_foto(radar, informes)
+
+    enviar("fundos", para_linhas(radar), "cnpj")
     enviar("informes", para_linhas(informes), "cnpj,subclasse,data")
 
     alertas = gerar_alertas(informes, radar)
