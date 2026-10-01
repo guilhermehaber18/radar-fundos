@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
     const grupo = String(req.query.grupo || "");
 
     const p = new URLSearchParams();
-    p.set("select", "cnpj,grupo,nome,gestor,patrimonio,data_pl");
+    p.set("select", "cnpj,grupo,nome,gestor,patrimonio,data_pl,classificacao,classificacao_anbima");
 
     const numeros = texto.replace(/\D/g, "");
     const temLetra = /[A-Z]/.test(texto);
@@ -26,6 +26,8 @@ module.exports = async (req, res) => {
       if (palavras.length) p.append("and", `(${palavras.map((w) => `busca.ilike.*${w}*`).join(",")})`);
     }
     if (GRUPOS.includes(grupo)) p.append("grupo", `eq.${grupo}`);
+    const classe = String(req.query.classe || "");
+    if (["Renda Fixa", "Multimercado", "Ações"].includes(classe)) p.append("classificacao", `eq.${classe}`);
     p.set("order", "patrimonio.desc.nullslast");
     p.set("limit", "30");
 

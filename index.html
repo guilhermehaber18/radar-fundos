@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
   <main class="pagina">
@@ -19,6 +19,7 @@
       <nav class="abas" aria-label="Seções">
         <a href="#alertas" data-aba="alertas">Alertas</a>
         <a href="#pesquisa" data-aba="pesquisa">Pesquisar fundo</a>
+        <a href="#categorias" data-aba="categorias">Categorias</a>
         <a href="#comparar" data-aba="comparar">Comparar fundos</a>
         <a href="#rivais" data-aba="rivais">BTG x rivais</a>
       </nav>
@@ -57,9 +58,20 @@
           <button data-grupo="Bradesco">Bradesco</button>
         </div>
       </div>
+      <div class="filtros filtros-busca">
+        <div class="grupo-botoes" id="busca-classe">
+          <button data-classe="" class="ativo">Todas as categorias</button>
+          <button data-classe="Renda Fixa">Renda Fixa</button>
+          <button data-classe="Multimercado">Multimercado</button>
+          <button data-classe="Ações">Ações</button>
+        </div>
+      </div>
       <p class="info" id="busca-info"></p>
       <ol id="resultados" class="resultados"></ol>
     </section>
+
+    <!-- ABA: CATEGORIAS -->
+    <section id="tela-categorias" class="tela" hidden></section>
 
     <!-- ABA 3: COMPARAR FUNDOS -->
     <section id="tela-comparar" class="tela" hidden></section>
@@ -76,8 +88,9 @@
     </footer>
   </main>
   <div id="dica" class="dica" role="status" hidden></div>
-  <script src="script.js?v=3"></script>
-  <script src="fundo.js?v=4"></script>
-  <script src="comparar.js?v=3"></script>
+  <script src="script.js?v=4"></script>
+  <script src="fundo.js?v=5"></script>
+  <script src="comparar.js?v=4"></script>
+  <script src="categorias-tela.js?v=1"></script>
 </body>
 </html>

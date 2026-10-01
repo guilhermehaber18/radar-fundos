@@ -10,6 +10,7 @@ let alertasCarregados = false;
 let filtroGrupo = "todos";
 let filtroTipo = "todos";
 let buscaGrupo = "";
+let buscaClasse = "";
 let esperaBusca = null;
 
 const NOME_GRUPO = { BTG: "BTG", Itau: "Itaú", XP: "XP", Bradesco: "Bradesco" };
@@ -49,7 +50,7 @@ function eSaida(alerta) {
 
 // ---------- ABAS (o "endereco" depois do # diz qual tela mostrar) ----------
 function mostrarTela(nome) {
-  for (const t of ["alertas", "pesquisa", "comparar", "rivais", "fundo"]) {
+  for (const t of ["alertas", "pesquisa", "categorias", "comparar", "rivais", "fundo"]) {
     document.getElementById(`tela-${t}`).hidden = t !== nome;
   }
   document.querySelectorAll(".abas a").forEach((a) => {
@@ -62,6 +63,9 @@ function rotear() {
   if (endereco.startsWith("fundo/")) {
     mostrarTela("fundo");
     abrirFundo(endereco.split("/")[1]);              // funcao do fundo.js
+  } else if (endereco.startsWith("categorias")) {
+    mostrarTela("categorias");
+    abrirCategorias(endereco.split("/").slice(1));     // funcao do categorias-tela.js
   } else if (endereco.startsWith("comparar")) {
     mostrarTela("comparar");
     abrirComparar((endereco.split("/")[1] || "").split(",").filter(Boolean));   // funcao do comparar.js
@@ -161,7 +165,7 @@ async function pesquisar() {
   const lista = document.getElementById("resultados");
   lista.classList.add("carregando");
   try {
-    const url = `/api/pesquisa?q=${encodeURIComponent(texto)}&grupo=${encodeURIComponent(buscaGrupo)}`;
+    const url = `/api/pesquisa?q=${encodeURIComponent(texto)}&grupo=${encodeURIComponent(buscaGrupo)}&classe=${encodeURIComponent(buscaClasse)}`;
     const resposta = await fetch(url);
     const fundos = await resposta.json();
     if (!resposta.ok) throw new Error(fundos.erro || `erro ${resposta.status}`);
@@ -178,7 +182,7 @@ async function pesquisar() {
       <li>
         <a href="#fundo/${f.cnpj}">
           <span class="res-nome">${selo(f.grupo)}${protegido(f.nome)}</span>
-          <span class="res-detalhe">${protegido(f.gestor)}<br>CNPJ ${cnpjBonito(f.cnpj)}</span>
+          <span class="res-detalhe">${f.classificacao_anbima || f.classificacao ? protegido(f.classificacao_anbima || f.classificacao) + "<br>" : ""}${protegido(f.gestor)}<br>CNPJ ${cnpjBonito(f.cnpj)}</span>
           <span class="res-pl num">${reais(f.patrimonio)}</span>
         </a>
       </li>`).join("");
@@ -206,6 +210,7 @@ function iniciar() {
   ligarBotoes("filtro-grupo", (b) => { filtroGrupo = b.dataset.grupo; desenharLista(); });
   ligarBotoes("filtro-tipo", (b) => { filtroTipo = b.dataset.tipo; desenharLista(); });
   ligarBotoes("busca-grupo", (b) => { buscaGrupo = b.dataset.grupo; pesquisar(); });
+  ligarBotoes("busca-classe", (b) => { buscaClasse = b.dataset.classe; pesquisar(); });
 
   // pesquisa enquanto digita, esperando a pessoa parar por 0,3 segundo
   document.getElementById("busca").addEventListener("input", () => {

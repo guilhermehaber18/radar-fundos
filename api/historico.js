@@ -47,7 +47,7 @@ module.exports = async (req, res) => {
     }
 
     const [fundos, linhas, alertas] = await Promise.all([
-      buscarTudo(`fundos?cnpj=eq.${cnpj}&select=cnpj,grupo,gestor,nome,patrimonio,data_pl`),
+      buscarTudo(`fundos?cnpj=eq.${cnpj}&select=cnpj,grupo,gestor,nome,patrimonio,data_pl,classificacao,classificacao_anbima`),
       buscarTudo(`informes?cnpj=eq.${cnpj}&select=subclasse,data,cota,patrimonio,captacao,resgate,cotistas&order=data.asc`),
       buscarTudo(`alertas?cnpj=eq.${cnpj}&select=data,tipo,mensagem,valor&order=data.desc`),
     ]);

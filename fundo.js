@@ -64,7 +64,7 @@ function desenharFundo() {
     <header class="fundo-topo">
       <p class="fundo-gestor">${selo(fundo.grupo)}${protegido(fundo.gestor)}</p>
       <h2>${protegido(fundo.nome)}</h2>
-      <p class="info">CNPJ ${cnpjBonito(fundo.cnpj)}</p>
+      <p class="info">CNPJ ${cnpjBonito(fundo.cnpj)}${fundo.classificacao ? ` · Categoria: <a href="${enderecoCategoria(fundo.classificacao, fundo.classificacao_anbima || "")}">${protegido(fundo.classificacao_anbima || fundo.classificacao)}</a>` : ""}</p>
       <a class="botao-comparar" href="#comparar/${fundo.cnpj}">Comparar com outros fundos</a>
     </header>`;
 
@@ -115,6 +115,8 @@ function desenharFundo() {
 
     ${tabelaNoTempo(fundoAtual.dias)}
 
+    <section class="no-tempo" id="parecidos"></section>
+
     <details class="tabela">
       <summary>Ver os números em tabela</summary>
       <div class="rolagem"><table>
@@ -134,6 +136,7 @@ function desenharFundo() {
 
   ligarBotoes("periodo", (b) => { periodo = b.dataset.periodo; desenharFundo(); });
   explicar();                              // a IA comeca a escrever assim que a pagina abre
+  carregarParecidos();                     // funcao do categorias-tela.js
   indiceMira = null;
   desenharGraficos(dias, alertasPeriodo);
 }

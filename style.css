@@ -242,3 +242,29 @@ body {
 .ficha { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 14px; }
 .ficha span { color: var(--cinza); }
 .explicacao .tabela { margin-top: 10px; }
+
+/* Dia 11: categorias */
+.filtros-cat { position: static; border-bottom: 0; margin-top: 12px; }
+#cat-sub { width: 100%; max-width: 520px; font: inherit; font-size: 15px; color: var(--tinta); padding: 9px 10px; border: 1px solid var(--linha); border-radius: 8px; background: #fff; }
+#cat-sub:focus-visible { outline: 3px solid var(--btg); outline-offset: 1px; }
+#tela-categorias .rotulo-busca { margin-top: 4px; font-size: 14px; }
+#cat-tabela { transition: opacity .15s; }
+#cat-tabela.carregando { opacity: .5; }
+.tabela-cat td:nth-child(2) { white-space: normal; min-width: 220px; text-align: left; }
+.tabela-cat th:nth-child(2) { text-align: left; }
+.tabela-cat td a { color: var(--tinta); font-weight: 700; text-decoration: none; }
+.tabela-cat td a:hover { text-decoration: underline; }
+.tabela-comparar td:first-child a { color: var(--tinta); }
+.ordenar { all: unset; cursor: pointer; font-weight: 700; }
+.ordenar:hover { text-decoration: underline; }
+.ordenar.ativo { color: var(--btg); }
+.ordenar:focus-visible { outline: 3px solid var(--btg); outline-offset: 2px; }
+.marcar { width: 18px; height: 18px; accent-color: var(--tinta); cursor: pointer; }
+.barra-marcados { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 12px; margin-top: 8px; background: #fff; border: 1px solid var(--linha); border-radius: 8px; font-weight: 700; }
+.barra-marcados .botao-comparar { margin-top: 0; }
+.barra-marcados .info { margin: 0; font-weight: 400; }
+.aviso-categoria { margin: 12px 0 0; padding: 10px 12px; border-left: 4px solid #eda100; background: #fff; font-size: 15px; max-width: 70ch; }
+.so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (prefers-reduced-motion: reduce) { #cat-tabela { transition: none; } }
+.tabela-cat td:first-child, .tabela-cat th:first-child { min-width: 0; width: 34px; padding-right: 0; }
+.tabela-cat td:nth-child(2) { width: 46%; }

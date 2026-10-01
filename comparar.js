@@ -180,6 +180,8 @@ function desenharComparar() {
     <h2 class="titulo-tela">Comparar fundos</h2>
     <ul class="escolhidos">${escolhidos}</ul>
     ${adicionar}
+    ${new Set(fundos.map((f) => f.fundo.classificacao).filter(Boolean)).size > 1
+      ? `<p class="aviso-categoria">Atenção: estes fundos são de categorias diferentes (${[...new Set(fundos.map((f) => f.fundo.classificacao).filter(Boolean))].map(protegido).join(", ")}). Comparar o rendimento entre eles tem esse limite.</p>` : ""}
     ${botoesPeriodo("periodo-comparar", periodoComparar)}
     <p class="info">De ${dataBR(inicioReal)} a ${dataBR(fimComum)}. Todos começam em 100: uma linha em 110 subiu 10% no período.</p>
     <div class="graficos">

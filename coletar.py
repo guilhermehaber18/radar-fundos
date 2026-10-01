@@ -16,7 +16,7 @@ from alertas import gerar_alertas, um_por_dia, JANELA
 CVM = "https://dados.cvm.gov.br/dados/FI"
 URL_CADASTRO = f"{CVM}/CAD/DADOS/registro_fundo_classe.zip"
 URL_INFORME = f"{CVM}/DOC/INF_DIARIO/DADOS/inf_diario_fi_{{mes}}.zip"
-MESES = int(os.environ.get("MESES", "3"))  # quantos meses baixar (o atual e os anteriores)
+MESES = int(os.environ.get("MESES", "4"))  # quantos meses baixar (o atual e os anteriores)
 GUARDAR_DIAS = 400                         # faxina: apaga o que for mais antigo que isso
 
 GRUPOS = {
@@ -74,6 +74,19 @@ def apagar(tabela, filtro):  # ex.: apagar("alertas", "data=gte.2026-08-01")
     r = requests.delete(url, headers={"apikey": os.environ["SUPABASE_SECRET_KEY"]}, timeout=120)
     if r.status_code >= 300:
         raise RuntimeError(f"Supabase recusou ({r.status_code}): {r.text[:300]}")
+
+def buscar(caminho):  # le do Supabase em "paginas" de 1.000 linhas
+    linhas, inicio = [], 0
+    while True:
+        url = os.environ["SUPABASE_URL"].rstrip("/") + f"/rest/v1/{caminho}&limit=1000&offset={inicio}"
+        r = requests.get(url, headers={"apikey": os.environ["SUPABASE_SECRET_KEY"]}, timeout=120)
+        if r.status_code >= 300:
+            raise RuntimeError(f"Supabase recusou ({r.status_code}): {r.text[:300]}")
+        pagina = r.json()
+        linhas += pagina
+        if len(pagina) < 1000:
+            return linhas
+        inicio += 1000
 
 def para_linhas(df):  # tabela do pandas -> lista de dicionarios (vazio vira null)
     return df.astype(object).where(df.notna(), None).to_dict(orient="records")
@@ -144,6 +157,60 @@ def juntar_ultima_foto(radar, informes):
     ultimo = ultimo.rename(columns={"data": "data_pl"})
     return radar.merge(ultimo, on="cnpj", how="left")
 
+# ---------- PARTE 3b: RENDIMENTO E CAPTACAO DE CADA FUNDO (para a aba Categorias) ----------
+def cotas_por_dia(df):
+    # uma cota por fundo por dia: a linha "geral" do fundo ou, se nao houver, a da maior subclasse
+    df = df[df["cota"].notna() & (df["cota"] > 0)].copy()
+    df["geral"] = df["subclasse"] == ""
+    df = df.sort_values(["cnpj", "data", "geral", "patrimonio"])
+    return df.drop_duplicates(["cnpj", "data"], keep="last")[["cnpj", "data", "cota"]]
+
+def juntar_metricas(radar, informes):
+    cotas = cotas_por_dia(informes)
+    hoje = date.fromisoformat(informes["data"].max())
+    inicio_janela = informes["data"].min()
+    atras = lambda dias: (hoje - timedelta(days=dias)).isoformat()
+
+    fim = cotas.groupby("cnpj").tail(1).rename(columns={"cota": "cota_fim", "data": "data_fim"})
+    fim = fim[fim["data_fim"] >= atras(10)]            # so fundos com cota recente
+
+    def rendimento(dias, tabela):
+        ref = tabela[tabela["data"] <= atras(dias)].groupby("cnpj").tail(1)[["cnpj", "cota"]]
+        junto = fim.merge(ref, on="cnpj")
+        return (junto.set_index("cnpj")["cota_fim"] / junto.set_index("cnpj")["cota"] - 1)
+
+    metricas = pd.DataFrame(index=radar["cnpj"])
+    metricas["rend_1m"] = rendimento(31, cotas) if inicio_janela <= atras(31) else None
+    metricas["rend_3m"] = rendimento(92, cotas) if inicio_janela <= atras(92) else None
+
+    # 12 meses: a cota de um ano atras vem da janela baixada (se ela for longa) ou do Supabase
+    try:
+        if inicio_janela <= atras(360):
+            antigas = cotas[cotas["data"] <= atras(358)]
+        else:
+            linhas = buscar("informes?select=cnpj,subclasse,data,cota,patrimonio"
+                            f"&data=gte.{atras(372)}&data=lte.{atras(358)}&order=cnpj.asc,data.asc,subclasse.asc")
+            antigas = cotas_por_dia(pd.DataFrame(linhas)) if linhas else cotas.iloc[0:0]
+        ref = antigas.groupby("cnpj").head(1)[["cnpj", "cota"]]      # o dia mais antigo perto de 1 ano atras
+        junto = fim.merge(ref, on="cnpj").set_index("cnpj")
+        metricas["rend_12m"] = junto["cota_fim"] / junto["cota"] - 1
+    except Exception as erro:
+        print("  Aviso: nao consegui calcular o rendimento de 12 meses:", erro)
+        metricas["rend_12m"] = None
+
+    # entradas menos saidas nos ultimos 3 meses
+    if inicio_janela <= atras(92):
+        dia = um_por_dia(informes)
+        dia = dia[dia["data"] > atras(92)]
+        metricas["liq_3m"] = (dia["captacao"].fillna(0) - dia["resgate"].fillna(0)).groupby(dia["cnpj"]).sum()
+    else:
+        metricas["liq_3m"] = None
+
+    metricas = metricas.astype(float).replace([float("inf"), float("-inf")], float("nan")).reset_index()
+    print(f"Metricas: {metricas['rend_3m'].notna().sum()} fundos com rendimento de 3 meses, "
+          f"{metricas['rend_12m'].notna().sum()} com 12 meses")
+    return radar.merge(metricas, on="cnpj", how="left")
+
 # ---------- PARTE 4: RESUMO POR GRUPO (BTG x Itau x XP x Bradesco) ----------
 def resumir_grupos(radar, informes):
     # soma, para cada grupo e cada dia, o patrimonio, as entradas e as saidas de todos os fundos
@@ -163,6 +230,7 @@ if __name__ == "__main__":
     radar = montar_lista()
     informes = ler_informes(set(radar["cnpj"]))
     radar = juntar_ultima_foto(radar, informes)
+    radar = juntar_metricas(radar, informes)
 
     enviar("fundos", para_linhas(radar), "cnpj")
     enviar("informes", para_linhas(informes), "cnpj,subclasse,data")
