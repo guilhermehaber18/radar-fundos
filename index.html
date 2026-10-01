@@ -8,40 +8,67 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <main class="pagina">
     <header class="topo">
-      <h1>Radar de Fundos</h1>
+      <h1><a href="#alertas">Radar de Fundos</a></h1>
       <p class="subtitulo">Movimentos fora do normal nos fundos de BTG, Itaú, XP e Bradesco, com dados abertos da CVM.</p>
       <p class="info" id="info">Carregando…</p>
+      <nav class="abas" aria-label="Seções">
+        <a href="#alertas" data-aba="alertas">Alertas</a>
+        <a href="#pesquisa" data-aba="pesquisa">Pesquisar fundo</a>
+      </nav>
     </header>
 
-    <section class="destaque" id="destaque" aria-live="polite"></section>
+    <!-- ABA 1: ALERTAS -->
+    <section id="tela-alertas" class="tela">
+      <section class="destaque" id="destaque" aria-live="polite"></section>
+      <nav class="filtros" aria-label="Filtros dos alertas">
+        <div class="grupo-botoes" id="filtro-grupo">
+          <button data-grupo="todos" class="ativo">Todos</button>
+          <button data-grupo="BTG">BTG</button>
+          <button data-grupo="Itau">Itaú</button>
+          <button data-grupo="XP">XP</button>
+          <button data-grupo="Bradesco">Bradesco</button>
+        </div>
+        <div class="grupo-botoes" id="filtro-tipo">
+          <button data-tipo="todos" class="ativo">Entradas e saídas</button>
+          <button data-tipo="resgate_atipico">Só saídas</button>
+          <button data-tipo="captacao_atipica">Só entradas</button>
+        </div>
+      </nav>
+      <section id="lista" class="lista"></section>
+    </section>
 
-    <nav class="filtros" aria-label="Filtros">
-      <div class="grupo-botoes" id="filtro-grupo">
-        <button data-grupo="todos" class="ativo">Todos</button>
-        <button data-grupo="BTG">BTG</button>
-        <button data-grupo="Itau">Itaú</button>
-        <button data-grupo="XP">XP</button>
-        <button data-grupo="Bradesco">Bradesco</button>
+    <!-- ABA 2: PESQUISA -->
+    <section id="tela-pesquisa" class="tela" hidden>
+      <label class="rotulo-busca" for="busca">Nome, gestora ou CNPJ do fundo</label>
+      <input id="busca" type="search" autocomplete="off" placeholder="Ex.: btg selic, itau acoes, 09.215.250/0001-13">
+      <div class="filtros filtros-busca">
+        <div class="grupo-botoes" id="busca-grupo">
+          <button data-grupo="" class="ativo">Todos</button>
+          <button data-grupo="BTG">BTG</button>
+          <button data-grupo="Itau">Itaú</button>
+          <button data-grupo="XP">XP</button>
+          <button data-grupo="Bradesco">Bradesco</button>
+        </div>
       </div>
-      <div class="grupo-botoes" id="filtro-tipo">
-        <button data-tipo="todos" class="ativo">Entradas e saídas</button>
-        <button data-tipo="resgate_atipico">Só saídas</button>
-        <button data-tipo="captacao_atipica">Só entradas</button>
-      </div>
-    </nav>
+      <p class="info" id="busca-info"></p>
+      <ol id="resultados" class="resultados"></ol>
+    </section>
 
-    <section id="lista" class="lista"></section>
+    <!-- PAGINA DO FUNDO -->
+    <section id="tela-fundo" class="tela" hidden></section>
 
     <footer class="rodape">
       <p>Um alerta aparece quando o movimento do dia passa de 3 vezes a média do último mês do próprio fundo, com pelo menos R$ 10 milhões e 3% do patrimônio. Fundos com menos de R$ 50 milhões ficam de fora.</p>
       <p>Fonte: <a href="https://dados.cvm.gov.br/dataset/fi-doc-inf_diario">Portal de Dados Abertos da CVM</a>. Código no <a href="https://github.com/guilhermehaber18/radar-fundos">GitHub</a>.</p>
     </footer>
   </main>
-  <script src="script.js?v=1"></script>
+  <div id="dica" class="dica" role="status" hidden></div>
+  <script src="script.js?v=2"></script>
+  <script src="fundo.js?v=1"></script>
 </body>
 </html>

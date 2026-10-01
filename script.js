@@ -1,14 +1,16 @@
 // =============================================================
-// Vitrine do Radar de Fundos
-// Pede os alertas ao atendente (/api/alertas) e desenha a pagina.
-// Nunca guarda chave nenhuma: quem fala com o Supabase e o atendente.
+// Vitrine do Radar de Fundos (parte 1: abas, alertas e pesquisa)
+// A pagina do fundo com os graficos fica no arquivo fundo.js
 // =============================================================
 
 // ---------- MEMORIA DO SITE ----------
 let todosAlertas = [];
 let totalFundos = null;
+let alertasCarregados = false;
 let filtroGrupo = "todos";
 let filtroTipo = "todos";
+let buscaGrupo = "";
+let esperaBusca = null;
 
 const NOME_GRUPO = { BTG: "BTG", Itau: "Itaú", XP: "XP", Bradesco: "Bradesco" };
 
@@ -23,31 +25,70 @@ function protegido(texto) {         // evita que um nome estranho quebre o HTML
   }[c]));
 }
 
+function reais(valor) {             // 32891575799 -> "R$ 32,9 bi"
+  if (valor == null || isNaN(valor)) return "–";
+  const v = Math.abs(valor), sinal = valor < 0 ? "−" : "";
+  const fmt = (n) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  if (v >= 1e9) return `${sinal}R$ ${fmt(v / 1e9)} bi`;
+  if (v >= 1e6) return `${sinal}R$ ${fmt(v / 1e6)} mi`;
+  if (v >= 1e3) return `${sinal}R$ ${Math.round(v / 1e3).toLocaleString("pt-BR")} mil`;
+  return `${sinal}R$ ${Math.round(v).toLocaleString("pt-BR")}`;
+}
+
+function cnpjBonito(c) {            // "09215250000113" -> "09.215.250/0001-13"
+  return c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+}
+
+function selo(grupo) {
+  return `<span class="selo ${protegido(grupo)}">${NOME_GRUPO[grupo] || protegido(grupo)}</span>`;
+}
+
 function eSaida(alerta) {
   return alerta.tipo === "resgate_atipico";
 }
 
-// ---------- BUSCAR OS DADOS ----------
-async function carregar() {
+// ---------- ABAS (o "endereco" depois do # diz qual tela mostrar) ----------
+function mostrarTela(nome) {
+  for (const t of ["alertas", "pesquisa", "fundo"]) {
+    document.getElementById(`tela-${t}`).hidden = t !== nome;
+  }
+  document.querySelectorAll(".abas a").forEach((a) => {
+    a.classList.toggle("ativo", a.dataset.aba === nome);
+  });
+}
+
+function rotear() {
+  const endereco = location.hash.slice(1);          // ex.: "fundo/09215250000113"
+  if (endereco.startsWith("fundo/")) {
+    mostrarTela("fundo");
+    abrirFundo(endereco.split("/")[1]);              // funcao do fundo.js
+  } else if (endereco === "pesquisa") {
+    mostrarTela("pesquisa");
+    if (!document.getElementById("resultados").children.length) pesquisar();
+    document.getElementById("busca").focus();
+  } else {
+    mostrarTela("alertas");
+  }
+  window.scrollTo(0, 0);
+}
+
+// ---------- ALERTAS ----------
+async function carregarAlertas() {
   try {
     const resposta = await fetch("/api/alertas");
     const dados = await resposta.json();
     if (!resposta.ok) throw new Error(dados.erro || `erro ${resposta.status}`);
     todosAlertas = dados.alertas;
     totalFundos = dados.totalFundos;
-    desenharTudo();
+    alertasCarregados = true;
+    desenharInfo();
+    desenharDestaque();
+    desenharLista();
   } catch (erro) {
     document.getElementById("info").textContent = "";
     document.getElementById("lista").innerHTML =
       `<p class="erro">Não consegui carregar os alertas (${protegido(erro.message)}). Atualize a página em alguns minutos.</p>`;
   }
-}
-
-// ---------- DESENHAR ----------
-function desenharTudo() {
-  desenharInfo();
-  desenharDestaque();
-  desenharLista();
 }
 
 function desenharInfo() {
@@ -60,15 +101,29 @@ function desenharInfo() {
 function desenharDestaque() {
   const caixa = document.getElementById("destaque");
   if (!todosAlertas.length) { caixa.innerHTML = ""; return; }
-
-  // o maior movimento do dia mais recente (a lista ja vem ordenada por data e valor)
-  const maior = todosAlertas[0];
+  const maior = todosAlertas[0];      // a lista ja vem ordenada por data e valor
   caixa.className = "destaque " + (eSaida(maior) ? "saida" : "entrada");
   caixa.innerHTML = `
     <p class="quando">Maior movimento fora do normal em ${dataBR(maior.data)}</p>
-    <h2>${protegido(maior.nome)}</h2>
-    <p class="mensagem"><span class="selo ${maior.grupo}">${NOME_GRUPO[maior.grupo] || maior.grupo}</span>${protegido(maior.mensagem)}</p>
+    <h2><a href="#fundo/${maior.cnpj}">${protegido(maior.nome)}</a></h2>
+    <p class="mensagem">${selo(maior.grupo)}${protegido(maior.mensagem)}</p>
   `;
+}
+
+// tambem usada na pagina do fundo
+function linhaAlerta(a, maiorValor, comNome = true) {
+  const largura = Math.max(2, Math.round(100 * Math.sqrt(a.valor / maiorValor)));
+  const nome = comNome
+    ? `<p class="nome">${selo(a.grupo)}<a href="#fundo/${a.cnpj}">${protegido(a.nome)}</a></p>` : "";
+  return `
+    <article class="alerta ${eSaida(a) ? "saida" : "entrada"}">
+      <span class="seta" aria-label="${eSaida(a) ? "Saída" : "Entrada"}">${eSaida(a) ? "↓" : "↑"}</span>
+      <div>
+        ${nome}
+        <p class="texto">${protegido(a.mensagem)}</p>
+        <div class="barra"><i style="width:${largura}%"></i></div>
+      </div>
+    </article>`;
 }
 
 function desenharLista() {
@@ -77,37 +132,59 @@ function desenharLista() {
     (filtroGrupo === "todos" || a.grupo === filtroGrupo) &&
     (filtroTipo === "todos" || a.tipo === filtroTipo)
   );
-
   if (!filtrados.length) {
     lista.innerHTML = `<p class="vazio">Nenhum alerta com esses filtros. Experimente outro grupo ou tipo.</p>`;
     return;
   }
-
-  // a barra usa raiz quadrada para os gigantes nao esmagarem os outros
   const maiorValor = Math.max(...filtrados.map((a) => a.valor));
-  const largura = (v) => Math.max(2, Math.round(100 * Math.sqrt(v / maiorValor)));
-
-  // separa por dia
   const porDia = {};
   for (const a of filtrados) (porDia[a.data] ||= []).push(a);
 
   lista.innerHTML = Object.keys(porDia).map((dia) => {
     const itens = porDia[dia];
-    const linhas = itens.map((a) => `
-      <article class="alerta ${eSaida(a) ? "saida" : "entrada"}">
-        <span class="seta" aria-label="${eSaida(a) ? "Saída" : "Entrada"}">${eSaida(a) ? "↓" : "↑"}</span>
-        <div>
-          <p class="nome"><span class="selo ${a.grupo}">${NOME_GRUPO[a.grupo] || a.grupo}</span>${protegido(a.nome)}</p>
-          <p class="texto">${protegido(a.mensagem)}</p>
-          <div class="barra"><i style="width:${largura(a.valor)}%"></i></div>
-        </div>
-      </article>`).join("");
     const contagem = itens.length === 1 ? "1 alerta" : `${itens.length} alertas`;
-    return `<div class="dia"><h3>${dataBR(dia)} <span>${contagem}</span></h3>${linhas}</div>`;
+    return `<div class="dia"><h3>${dataBR(dia)} <span>${contagem}</span></h3>
+      ${itens.map((a) => linhaAlerta(a, maiorValor)).join("")}</div>`;
   }).join("");
 }
 
-// ---------- BOTOES DE FILTRO ----------
+// ---------- PESQUISA ----------
+async function pesquisar() {
+  const texto = document.getElementById("busca").value.trim();
+  const info = document.getElementById("busca-info");
+  const lista = document.getElementById("resultados");
+  lista.classList.add("carregando");
+  try {
+    const url = `/api/pesquisa?q=${encodeURIComponent(texto)}&grupo=${encodeURIComponent(buscaGrupo)}`;
+    const resposta = await fetch(url);
+    const fundos = await resposta.json();
+    if (!resposta.ok) throw new Error(fundos.erro || `erro ${resposta.status}`);
+
+    if (!fundos.length) {
+      info.textContent = "";
+      lista.innerHTML = `<li class="vazio">Nenhum fundo encontrado. Tente menos palavras ou só o nome da gestora.</li>`;
+      return;
+    }
+    info.textContent = texto
+      ? `${fundos.length === 30 ? "Os 30 maiores" : fundos.length} resultados, do maior para o menor.`
+      : "Os 30 maiores fundos. Digite para procurar.";
+    lista.innerHTML = fundos.map((f) => `
+      <li>
+        <a href="#fundo/${f.cnpj}">
+          <span class="res-nome">${selo(f.grupo)}${protegido(f.nome)}</span>
+          <span class="res-detalhe">${protegido(f.gestor)}<br>CNPJ ${cnpjBonito(f.cnpj)}</span>
+          <span class="res-pl num">${reais(f.patrimonio)}</span>
+        </a>
+      </li>`).join("");
+  } catch (erro) {
+    info.textContent = "";
+    lista.innerHTML = `<li class="erro">Não consegui pesquisar (${protegido(erro.message)}). Tente de novo.</li>`;
+  } finally {
+    lista.classList.remove("carregando");
+  }
+}
+
+// ---------- BOTOES ----------
 function ligarBotoes(idCaixa, aoClicar) {
   const caixa = document.getElementById(idCaixa);
   caixa.addEventListener("click", (evento) => {
@@ -116,11 +193,23 @@ function ligarBotoes(idCaixa, aoClicar) {
     caixa.querySelectorAll("button").forEach((b) => b.classList.remove("ativo"));
     botao.classList.add("ativo");
     aoClicar(botao);
-    desenharLista();
   });
 }
 
-ligarBotoes("filtro-grupo", (b) => { filtroGrupo = b.dataset.grupo; });
-ligarBotoes("filtro-tipo", (b) => { filtroTipo = b.dataset.tipo; });
+function iniciar() {
+  ligarBotoes("filtro-grupo", (b) => { filtroGrupo = b.dataset.grupo; desenharLista(); });
+  ligarBotoes("filtro-tipo", (b) => { filtroTipo = b.dataset.tipo; desenharLista(); });
+  ligarBotoes("busca-grupo", (b) => { buscaGrupo = b.dataset.grupo; pesquisar(); });
 
-carregar();
+  // pesquisa enquanto digita, esperando a pessoa parar por 0,3 segundo
+  document.getElementById("busca").addEventListener("input", () => {
+    clearTimeout(esperaBusca);
+    esperaBusca = setTimeout(pesquisar, 300);
+  });
+
+  window.addEventListener("hashchange", rotear);
+  carregarAlertas();
+  rotear();
+}
+
+window.addEventListener("DOMContentLoaded", iniciar);
