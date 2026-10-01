@@ -1,0 +1,94 @@
+/* Cores e letras do Radar */
+:root {
+  --papel: #F4F6F9;
+  --tinta: #16233B;
+  --cinza: #5B6576;
+  --linha: #D9DEE7;
+  --saida: #B3261E;
+  --entrada: #0B7A55;
+  --btg: #2445A8;
+  --itau: #C8601A;
+  --xp: #3A3F47;
+  --bradesco: #B4234A;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: "Schibsted Grotesk", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.pagina { max-width: 860px; margin: 0 auto; padding: 40px 16px 64px; }
+
+/* Topo */
+.topo h1 { font-size: 20px; font-weight: 800; margin: 0; letter-spacing: -0.01em; }
+.subtitulo { margin: 4px 0 0; color: var(--cinza); max-width: 60ch; }
+.info { margin: 12px 0 0; font-size: 14px; color: var(--cinza); }
+
+/* Destaque: o maior movimento do dia mais recente */
+.destaque { margin: 40px 0 32px; padding-left: 20px; border-left: 6px solid var(--saida); }
+.destaque.entrada { border-left-color: var(--entrada); }
+.destaque .quando { margin: 0 0 8px; font-size: 15px; color: var(--cinza); }
+.destaque h2 { margin: 0; font-size: clamp(26px, 5vw, 42px); line-height: 1.12; font-weight: 800; letter-spacing: -0.02em; }
+.destaque .mensagem { margin: 12px 0 0; font-size: clamp(17px, 2.4vw, 20px); max-width: 52ch; }
+
+/* Filtros */
+.filtros {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; flex-wrap: wrap; gap: 8px 16px;
+  padding: 12px 0; background: var(--papel); border-bottom: 1px solid var(--linha);
+}
+.grupo-botoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.filtros button {
+  font: inherit; font-size: 14px; color: var(--tinta);
+  background: transparent; border: 1px solid var(--linha); border-radius: 999px;
+  padding: 6px 12px; cursor: pointer;
+}
+.filtros button:hover { border-color: var(--tinta); }
+.filtros button.ativo { background: var(--tinta); border-color: var(--tinta); color: #fff; }
+.filtros button:focus-visible { outline: 3px solid var(--btg); outline-offset: 2px; }
+
+/* Lista de alertas, separada por dia */
+.dia { margin-top: 28px; }
+.dia h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; }
+.dia h3 span { color: var(--cinza); font-weight: 400; }
+
+.alerta {
+  display: grid; grid-template-columns: 22px 1fr; gap: 0 10px;
+  padding: 14px 0; border-top: 1px solid var(--linha);
+}
+.seta { font-weight: 800; font-size: 18px; line-height: 1.3; }
+.saida .seta { color: var(--saida); }
+.entrada .seta { color: var(--entrada); }
+
+.alerta .nome { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.alerta .texto { margin: 2px 0 8px; color: var(--cinza); font-size: 15px; }
+
+.selo {
+  display: inline-block; margin-right: 6px; padding: 0 7px; border-radius: 4px;
+  font-size: 12px; font-weight: 700; color: #fff; vertical-align: 2px;
+}
+.selo.BTG { background: var(--btg); }
+.selo.Itau { background: var(--itau); }
+.selo.XP { background: var(--xp); }
+.selo.Bradesco { background: var(--bradesco); }
+
+/* Barra: o tamanho do movimento comparado ao maior da lista */
+.barra { height: 6px; background: var(--linha); border-radius: 3px; overflow: hidden; }
+.barra i { display: block; height: 100%; border-radius: 3px; }
+.saida .barra i { background: var(--saida); }
+.entrada .barra i { background: var(--entrada); }
+
+.vazio, .erro { margin-top: 32px; color: var(--cinza); }
+.erro { color: var(--saida); }
+
+/* Rodape */
+.rodape { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--linha); font-size: 14px; color: var(--cinza); }
+.rodape p { max-width: 70ch; }
+.rodape a { color: var(--tinta); }
