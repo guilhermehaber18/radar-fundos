@@ -49,7 +49,7 @@ function eSaida(alerta) {
 
 // ---------- ABAS (o "endereco" depois do # diz qual tela mostrar) ----------
 function mostrarTela(nome) {
-  for (const t of ["alertas", "pesquisa", "fundo"]) {
+  for (const t of ["alertas", "pesquisa", "comparar", "rivais", "fundo"]) {
     document.getElementById(`tela-${t}`).hidden = t !== nome;
   }
   document.querySelectorAll(".abas a").forEach((a) => {
@@ -62,6 +62,12 @@ function rotear() {
   if (endereco.startsWith("fundo/")) {
     mostrarTela("fundo");
     abrirFundo(endereco.split("/")[1]);              // funcao do fundo.js
+  } else if (endereco.startsWith("comparar")) {
+    mostrarTela("comparar");
+    abrirComparar((endereco.split("/")[1] || "").split(",").filter(Boolean));   // funcao do comparar.js
+  } else if (endereco === "rivais") {
+    mostrarTela("rivais");
+    abrirRivais();                                    // funcao do comparar.js
   } else if (endereco === "pesquisa") {
     mostrarTela("pesquisa");
     if (!document.getElementById("resultados").children.length) pesquisar();

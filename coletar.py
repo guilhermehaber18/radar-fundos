@@ -137,6 +137,16 @@ def juntar_ultima_foto(radar, informes):
     ultimo = ultimo.rename(columns={"data": "data_pl"})
     return radar.merge(ultimo, on="cnpj", how="left")
 
+# ---------- PARTE 4: RESUMO POR GRUPO (BTG x Itau x XP x Bradesco) ----------
+def resumir_grupos(radar, informes):
+    # soma, para cada grupo e cada dia, o patrimonio, as entradas e as saidas de todos os fundos
+    dia = um_por_dia(informes).merge(radar[["cnpj", "grupo"]], on="cnpj", how="left")
+    resumo = dia.groupby(["grupo", "data"], as_index=False).agg(
+        patrimonio=("patrimonio", "sum"), captacao=("captacao", "sum"),
+        resgate=("resgate", "sum"), fundos=("cnpj", "count"))
+    print(f"Resumo por grupo: {len(resumo)} linhas")
+    return resumo
+
 # ---------- O ROBO TRABALHANDO ----------
 if __name__ == "__main__":
     for nome in ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]:
@@ -149,6 +159,8 @@ if __name__ == "__main__":
 
     enviar("fundos", para_linhas(radar), "cnpj")
     enviar("informes", para_linhas(informes), "cnpj,subclasse,data")
+
+    enviar("resumo_grupos", para_linhas(resumir_grupos(radar, informes)), "grupo,data")
 
     alertas = gerar_alertas(informes, radar)
     # apaga os alertas antigos do periodo e grava os novos (assim, se a regra mudar, tudo se atualiza)

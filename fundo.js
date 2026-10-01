@@ -65,6 +65,7 @@ function desenharFundo() {
       <p class="fundo-gestor">${selo(fundo.grupo)}${protegido(fundo.gestor)}</p>
       <h2>${protegido(fundo.nome)}</h2>
       <p class="info">CNPJ ${cnpjBonito(fundo.cnpj)}</p>
+      <a class="botao-comparar" href="#comparar/${fundo.cnpj}">Comparar com outros fundos</a>
     </header>`;
 
   if (dias.length < 2) {
@@ -108,6 +109,8 @@ function desenharFundo() {
         <div id="g-fluxo"></div></figure>
     </div>
 
+    ${tabelaNoTempo(fundoAtual.dias)}
+
     <details class="tabela">
       <summary>Ver os números em tabela</summary>
       <div class="rolagem"><table>
@@ -128,6 +131,29 @@ function desenharFundo() {
   ligarBotoes("periodo", (b) => { periodo = b.dataset.periodo; desenharFundo(); });
   indiceMira = null;
   desenharGraficos(dias, alertasPeriodo);
+}
+
+// ---------- O FUNDO CONTRA ELE MESMO NO PASSADO ----------
+function tabelaNoTempo(todosDias) {
+  const hoje = todosDias[todosDias.length - 1];
+  const momentos = [["Hoje", 0], ["1 mês atrás", 31], ["3 meses atrás", 92], ["6 meses atrás", 183], ["1 ano atrás", 366]];
+  const linhas = momentos.map(([nome, dias]) => {
+    const alvo = new Date(new Date(hoje.data + "T12:00:00") - dias * 864e5).toISOString().slice(0, 10);
+    let d = todosDias.filter((x) => x.data <= alvo).pop();       // o dia util mais proximo antes da data
+    if (!d && dias === 366) d = todosDias[0];                      // historico um pouco menor que 1 ano: usa o primeiro dia
+    if (!d) return "";
+    const rendAteHoje = dias && d.cota && hoje.cota ? pct(hoje.cota / d.cota - 1) : "";
+    return `<tr><td>${nome}<span class="data-pequena">${dataBR(d.data)}</span></td>
+      <td>${reais(d.patrimonio)}</td><td>${numero(d.cota, 4)}</td><td>${numero(d.cotistas)}</td><td>${rendAteHoje}</td></tr>`;
+  }).join("");
+  return `
+    <section class="no-tempo">
+      <h3>O fundo contra ele mesmo</h3>
+      <div class="rolagem tabela-comparar"><table>
+        <thead><tr><th>Quando</th><th>Patrimônio</th><th>Cota</th><th>Cotistas</th><th>Rendeu de lá até hoje</th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table></div>
+    </section>`;
 }
 
 // ---------- OS GRAFICOS ----------

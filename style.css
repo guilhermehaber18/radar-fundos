@@ -177,3 +177,48 @@ body {
   .numeros { grid-template-columns: repeat(2, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) { .resultados { transition: none; } }
+
+/* Dia 8: comparacoes */
+.abas { flex-wrap: wrap; gap: 4px 24px; }
+.titulo-tela { margin: 28px 0 4px; font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em; }
+.botao-comparar {
+  display: inline-block; margin-top: 12px; padding: 7px 14px; border-radius: 999px;
+  background: var(--tinta); color: #fff; text-decoration: none; font-size: 14px; font-weight: 500;
+}
+.botao-comparar:hover { background: var(--btg); }
+
+.chave-linha { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 8px; vertical-align: 4px; }
+.legenda-series { list-style: none; padding: 0; margin: 6px 0 4px; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; color: var(--cinza); }
+
+.escolhidos { list-style: none; padding: 0; margin: 16px 0; }
+.escolhidos li { display: flex; align-items: center; gap: 4px; padding: 10px 0; border-top: 1px solid var(--linha); flex-wrap: wrap; }
+.escolhidos a { color: var(--tinta); font-weight: 700; text-decoration: none; flex: 1; min-width: 200px; overflow-wrap: anywhere; }
+.escolhidos a:hover { text-decoration: underline; }
+.tirar { font: inherit; font-size: 13px; color: var(--cinza); background: none; border: 1px solid var(--linha); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.tirar:hover { color: var(--saida); border-color: var(--saida); }
+#busca-comparar { width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--linha); border-radius: 8px; background: #fff; }
+#busca-comparar:focus { outline: 3px solid var(--btg); outline-offset: 1px; }
+.sugestao { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 1fr auto; gap: 12px; width: 100%; padding: 10px 4px; cursor: pointer; }
+.sugestao:hover, .sugestao:focus-visible { background: #fff; outline: none; }
+
+.tabela-comparar { max-height: none; margin-top: 16px; }
+.tabela-comparar table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.tabela-comparar th, .tabela-comparar td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--linha); white-space: nowrap; }
+.tabela-comparar th:first-child, .tabela-comparar td:first-child { text-align: left; }
+.tabela-comparar th { background: var(--papel); font-weight: 700; }
+.data-pequena { display: block; font-size: 12px; color: var(--cinza); }
+.no-tempo { margin-top: 32px; }
+.no-tempo h3 { font-size: 17px; margin: 0; }
+
+.figura-barras { margin: 20px 0 0; }
+.figura-barras figcaption { font-weight: 700; font-size: 15px; }
+.barras-h { list-style: none; padding: 0; margin: 10px 0 0; }
+.barras-h li { display: grid; grid-template-columns: 90px 1fr 150px; align-items: center; gap: 12px; padding: 6px 0; }
+.barra-trilho { position: relative; height: 18px; }
+.barra-trilho::before { content: ""; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--cinza); }
+.barra-trilho i { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+.barra-trilho i.entrada { background: var(--entrada); border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.barra-trilho i.saida { background: var(--saida); border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.barra-valor { font-weight: 700; text-align: right; white-space: nowrap; }
+.nota-rodape { margin-top: 20px; font-size: 14px; color: var(--cinza); max-width: 70ch; }
+@media (max-width: 640px) { .barras-h li { grid-template-columns: 74px 1fr 112px; gap: 8px; font-size: 13px; } }
