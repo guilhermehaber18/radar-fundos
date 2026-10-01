@@ -1,0 +1,12 @@
+# Segredos: NUNCA vao pro GitHub
+.env
+.env.*
+chaves.txt
+
+# Arquivos de dados grandes da CVM
+*.csv
+*.zip
+
+# Lixo do Python e do Windows
+__pycache__/
+Thumbs.db
