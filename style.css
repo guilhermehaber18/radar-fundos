@@ -222,3 +222,7 @@ body {
 .barra-valor { font-weight: 700; text-align: right; white-space: nowrap; }
 .nota-rodape { margin-top: 20px; font-size: 14px; color: var(--cinza); max-width: 70ch; }
 @media (max-width: 640px) { .barras-h li { grid-template-columns: 74px 1fr 112px; gap: 8px; font-size: 13px; } }
+
+/* Dia 9: tabelas de comparacao cabem na tela (titulos e nomes podem quebrar linha) */
+.tabela-comparar th { white-space: normal; vertical-align: bottom; }
+.tabela-comparar td:first-child { white-space: normal; min-width: 150px; }

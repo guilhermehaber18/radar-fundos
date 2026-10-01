@@ -159,6 +159,7 @@ function desenharComparar() {
   const fimComum = fundos.map((f) => f.dias[f.dias.length - 1].data).sort()[0];
   const inicio = corte(fimComum, periodoComparar);
   const cortados = fundos.map((f) => ({ ...f, diasP: f.dias.filter((d) => d.data >= inicio && d.data <= fimComum) }));
+  const inicioReal = cortados.map((f) => f.diasP[0]?.data).filter(Boolean).sort()[0] || inicio;   // primeiro dia que existe de verdade
 
   const base100 = (f, campo) => {
     const validos = f.diasP.filter((d) => d[campo] != null && d[campo] > 0);
@@ -180,7 +181,7 @@ function desenharComparar() {
     <ul class="escolhidos">${escolhidos}</ul>
     ${adicionar}
     ${botoesPeriodo("periodo-comparar", periodoComparar)}
-    <p class="info">De ${dataBR(inicio)} a ${dataBR(fimComum)}. Todos começam em 100: uma linha em 110 subiu 10% no período.</p>
+    <p class="info">De ${dataBR(inicioReal)} a ${dataBR(fimComum)}. Todos começam em 100: uma linha em 110 subiu 10% no período.</p>
     <div class="graficos">
       <figure><figcaption>Rendimento da cota</figcaption><div id="g-comp-cota"></div></figure>
       <figure><figcaption>Crescimento do patrimônio <span>inclui o dinheiro que entrou e saiu</span></figcaption><div id="g-comp-pl"></div></figure>
@@ -257,6 +258,8 @@ function desenharRivais() {
     return { g, pontos, liquido: acumulado, fim, varPL: ini.patrimonio ? fim.patrimonio / ini.patrimonio - 1 : null };
   }).filter(Boolean);
 
+  const inicioReal = grupos.map((x) => x.pontos[0].data).sort()[0] || inicio;   // primeiro dia que existe de verdade
+
   // barras horizontais: entradas menos saidas no periodo (verde = entrou mais, vermelho = saiu mais)
   const maior = Math.max(1, ...grupos.map((x) => Math.abs(x.liquido)));
   const barras = grupos.map((x) => {
@@ -272,7 +275,7 @@ function desenharRivais() {
     <h2 class="titulo-tela">BTG x rivais</h2>
     <p class="subtitulo">Quanto dinheiro entrou ou saiu dos fundos de cada grupo, somando todos os fundos dele.</p>
     ${botoesPeriodo("periodo-rivais", periodoRivais)}
-    <p class="info">De ${dataBR(inicio)} a ${dataBR(ultima)}.</p>
+    <p class="info">De ${dataBR(inicioReal)} a ${dataBR(ultima)}.</p>
     <figure class="figura-barras"><figcaption>Entradas menos saídas em ${nomePeriodo}</figcaption>
       <ul class="barras-h">${barras}</ul></figure>
     <div class="graficos"><figure><figcaption>Entradas menos saídas, acumulado no período</figcaption>

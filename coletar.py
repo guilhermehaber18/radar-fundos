@@ -7,16 +7,17 @@
 # =============================================================
 
 import io, os, re, sys, unicodedata, zipfile
-from datetime import date
+from datetime import date, timedelta
 import pandas as pd
 import requests
-from alertas import gerar_alertas, um_por_dia
+from alertas import gerar_alertas, um_por_dia, JANELA
 
 # ---------- CONFIGURACAO ----------
 CVM = "https://dados.cvm.gov.br/dados/FI"
 URL_CADASTRO = f"{CVM}/CAD/DADOS/registro_fundo_classe.zip"
 URL_INFORME = f"{CVM}/DOC/INF_DIARIO/DADOS/inf_diario_fi_{{mes}}.zip"
-MESES = int(os.environ.get("MESES", "2"))  # quantos meses baixar (o atual e os anteriores)
+MESES = int(os.environ.get("MESES", "3"))  # quantos meses baixar (o atual e os anteriores)
+GUARDAR_DIAS = 400                         # faxina: apaga o que for mais antigo que isso
 
 GRUPOS = {
     "BTG":      r"\bBTG",
@@ -162,9 +163,24 @@ if __name__ == "__main__":
 
     enviar("resumo_grupos", para_linhas(resumir_grupos(radar, informes)), "grupo,data")
 
+    # Os primeiros dias baixados nao tem "ultimo mes" completo para comparar.
+    # Por isso so mexemos nos alertas a partir do dia em que o historico ja esta completo;
+    # os alertas mais antigos, calculados em rodadas anteriores, ficam como estao.
     alertas = gerar_alertas(informes, radar)
-    # apaga os alertas antigos do periodo e grava os novos (assim, se a regra mudar, tudo se atualiza)
-    apagar("alertas", f"data=gte.{informes['data'].min()}")
-    enviar("alertas", para_linhas(alertas), "cnpj,data,tipo")
+    dias_baixados = sorted(informes["data"].unique())
+    if len(dias_baixados) > JANELA:
+        inicio = dias_baixados[JANELA]
+        alertas = alertas[alertas["data"] >= inicio]
+        apagar("alertas", f"data=gte.{inicio}")
+        enviar("alertas", para_linhas(alertas), "cnpj,data,tipo")
+        print(f"  (alertas atualizados de {inicio} em diante)")
+    else:
+        print("  Poucos dias baixados: alertas nao foram alterados")
+
+    # Faxina: a geladeira guarda pouco mais de 1 ano
+    limite = (date.today() - timedelta(days=GUARDAR_DIAS)).isoformat()
+    for tabela in ["informes", "alertas", "resumo_grupos"]:
+        apagar(tabela, f"data=lt.{limite}")
+    print(f"Faxina: apagado o que era anterior a {limite}")
 
     print("Pronto! Coleta concluida.")
