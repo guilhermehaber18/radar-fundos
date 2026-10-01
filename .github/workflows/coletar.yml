@@ -1,0 +1,22 @@
+name: Coleta diaria CVM
+
+on:
+  schedule:
+    - cron: "0 12 * * *"   # todo dia 12:00 UTC = 9h em Brasilia
+  workflow_dispatch:         # botao para rodar na mao
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas requests
+      - run: python coletar.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          MESES: "2"
