@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
   <main class="pagina">
@@ -38,9 +38,11 @@
         </div>
         <div class="grupo-botoes" id="filtro-tipo">
           <button data-tipo="todos" class="ativo">Entradas e saídas</button>
-          <button data-tipo="resgate_atipico">Só saídas</button>
+          <button data-tipo="saidas">Só saídas</button>
           <button data-tipo="captacao_atipica">Só entradas</button>
+          <button data-tipo="sangria">Saídas contínuas</button>
         </div>
+        <button id="baixar-alertas" class="baixar">Baixar em Excel</button>
       </nav>
       <section id="lista" class="lista"></section>
     </section>
@@ -83,14 +85,14 @@
     <section id="tela-fundo" class="tela" hidden></section>
 
     <footer class="rodape">
-      <p>Um alerta aparece quando o movimento do dia passa de 3 vezes a média do último mês do próprio fundo, com pelo menos R$ 10 milhões e 3% do patrimônio. Fundos com menos de R$ 50 milhões ficam de fora.</p>
+      <p>Um alerta aparece quando o movimento do dia passa de 3 vezes a média do último mês do próprio fundo, com pelo menos R$ 10 milhões e 3% do patrimônio. Fundos com menos de R$ 50 milhões ficam de fora. Uma saída contínua aparece quando o fundo passa 5 dias úteis seguidos com mais dinheiro saindo do que entrando, somando pelo menos 5% do patrimônio.</p>
       <p>Fonte: <a href="https://dados.cvm.gov.br/dataset/fi-doc-inf_diario">Portal de Dados Abertos da CVM</a>. Código no <a href="https://github.com/guilhermehaber18/radar-fundos">GitHub</a>.</p>
     </footer>
   </main>
   <div id="dica" class="dica" role="status" hidden></div>
-  <script src="script.js?v=4"></script>
-  <script src="fundo.js?v=5"></script>
-  <script src="comparar.js?v=5"></script>
-  <script src="categorias-tela.js?v=2"></script>
+  <script src="script.js?v=5"></script>
+  <script src="fundo.js?v=6"></script>
+  <script src="comparar.js?v=6"></script>
+  <script src="categorias-tela.js?v=3"></script>
 </body>
 </html>

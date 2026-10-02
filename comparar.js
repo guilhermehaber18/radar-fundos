@@ -315,12 +315,16 @@ function desenharRivais() {
       <tbody>${grupos.map((x) => `<tr><td>${selo(x.g)}</td><td>${numero(x.fim.fundos)}</td>
         <td>${reais(x.fim.patrimonio)}</td><td>${pct(x.varPL)}</td><td>${reais(x.liquido)}</td></tr>`).join("")}</tbody>
     </table></div>
+    <button id="baixar-rivais" class="baixar">Baixar os números do dia a dia em Excel</button>
     <p class="nota-rodape">Atenção: muitos fundos investem em outros fundos do mesmo grupo, então a soma pode contar o mesmo dinheiro duas vezes.
       Os números servem para comparar tendências entre os grupos, não como o tamanho exato de cada gestora.
       Os últimos dias só entram quando quase todos os fundos já entregaram o informe à CVM.</p>`;
 
   graficoLinhas("g-rivais", grupos.map((x) => ({ nome: NOME_GRUPO[x.g], cor: COR_GRUPO[x.g], pontos: x.pontos })), reais, { referencia: 0 });
   ligarBotoes("periodo-rivais", (b) => { periodoRivais = b.dataset.periodo; desenharRivais(); });
+  document.getElementById("baixar-rivais").addEventListener("click", () =>
+    baixarCSV("radar-grupos.csv", ["Dia", "Grupo", "Categoria", "Patrimônio (R$)", "Entradas (R$)", "Saídas (R$)", "Fundos"],
+      fonte.filter((l) => l.data >= inicio).map((l) => [dataBR(l.data), NOME_GRUPO[l.grupo] || l.grupo, l.classe || "Todas", Number(l.patrimonio), Number(l.captacao), Number(l.resgate), String(l.fundos)])));
   if (resumoClasses.length) ligarBotoes("classe-rivais", (b) => { classeRivais = b.dataset.classe; desenharRivais(); });
 }
 

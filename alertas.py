@@ -15,6 +15,11 @@ MIN_PCT_PL = 0.03       # ignora movimentos menores que 3% do patrimonio
 MIN_PL = 50_000_000     # so olha fundos com pelo menos R$ 50 milhoes
 VEZES_MEDIA = 3       # precisa ser pelo menos 3x a media do ultimo mes
 
+# Saida continua ("sangria"): varios dias seguidos saindo mais dinheiro do que entra
+SANGRIA_DIAS = 5            # pelo menos 5 dias uteis seguidos
+SANGRIA_PCT_PL = 0.05       # somando pelo menos 5% do patrimonio do fundo
+SANGRIA_VALOR = 10_000_000  # e pelo menos R$ 10 milhoes
+
 TIPOS = [  # (coluna, nome do alerta, palavra usada na mensagem)
     ("resgate",  "resgate_atipico",  "Resgate"),
     ("captacao", "captacao_atipica", "Captação"),
@@ -32,6 +37,28 @@ def um_por_dia(informes):
     df = df[df["geral"] | ~tem_geral]
     soma = df.groupby(["cnpj", "data"], as_index=False)[["patrimonio", "captacao", "resgate"]].sum(min_count=1)
     return soma.sort_values(["cnpj", "data"]).reset_index(drop=True)
+
+def achar_sangrias(df):
+    # df: uma linha por fundo por dia, ja ordenada, com a coluna pl_ontem
+    d = df.copy()
+    d["liquido"] = d["captacao"].fillna(0) - d["resgate"].fillna(0)
+    d["saindo"] = d["liquido"] < 0
+    # cada sequencia de dias "saindo" ganha um numero: o contador sobe toda vez que aparece um dia sem saida
+    d["sequencia"] = (~d["saindo"]).groupby(d["cnpj"]).cumsum()
+    seq = d[d["saindo"]].groupby(["cnpj", "sequencia"]).agg(
+        dias=("data", "count"), inicio=("data", "first"), data=("data", "last"),
+        total=("liquido", "sum"), pl_antes=("pl_ontem", "first")).reset_index()
+    seq["valor"] = -seq["total"]
+    seq = seq[(seq["dias"] >= SANGRIA_DIAS) & (seq["valor"] >= SANGRIA_VALOR)
+              & (seq["pl_antes"] >= MIN_PL) & (seq["valor"] >= SANGRIA_PCT_PL * seq["pl_antes"])].copy()
+    if seq.empty:
+        return seq.assign(tipo="sangria", mensagem="")
+    dia = lambda t: f"{t[8:10]}/{t[5:7]}"
+    seq["tipo"] = "sangria"
+    seq["mensagem"] = seq.apply(lambda l: (
+        f"Saída contínua: {l['dias']} dias seguidos saindo mais do que entra, de {dia(l['inicio'])} a {dia(l['data'])}, "
+        f"somando R$ {reais_mi(l['valor'])} mi ({str(round(100 * l['valor'] / l['pl_antes'], 1)).replace('.', ',')}% do patrimônio)"), axis=1)
+    return seq
 
 def gerar_alertas(informes, fundos):
     df = um_por_dia(informes)
@@ -62,10 +89,12 @@ def gerar_alertas(informes, fundos):
         sel["palavra"] = palavra
         achados.append(sel)
 
+    colunas = ["cnpj", "data", "tipo", "grupo", "nome", "mensagem", "valor"]
+    sangrias = achar_sangrias(df).merge(fundos[["cnpj", "grupo", "nome"]], on="cnpj", how="left")
     al = pd.concat(achados)
-    if al.empty:
+    if al.empty and sangrias.empty:
         print("Alertas: nenhum encontrado")
-        return pd.DataFrame(columns=["cnpj", "data", "tipo", "grupo", "nome", "mensagem", "valor"])
+        return pd.DataFrame(columns=colunas)
 
     al = al.merge(fundos[["cnpj", "grupo", "nome"]], on="cnpj", how="left")
 
@@ -79,8 +108,9 @@ def gerar_alertas(informes, fundos):
         pct_txt = f"{pct:.1f}".replace(".", ",")
         return f"{l['palavra']} de R$ {reais_mi(l['valor'])} mi em {dia} ({pct_txt}% do patrimônio; {comparacao})"
 
-    al["mensagem"] = al.apply(escrever, axis=1)
-    al = al[["cnpj", "data", "tipo", "grupo", "nome", "mensagem", "valor"]]
+    al["mensagem"] = al.apply(escrever, axis=1) if len(al) else None
+    al = pd.concat([al[colunas], sangrias[colunas]], ignore_index=True)
+    print(f"Saidas continuas (sangrias): {len(sangrias)}")
 
     # Resumo na tela (pra gente conferir se a regra esta boa)
     print(f"Alertas encontrados: {len(al)} (media de {len(al) / al['data'].nunique():.1f} por dia)")

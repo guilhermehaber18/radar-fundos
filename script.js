@@ -44,8 +44,31 @@ function selo(grupo) {
   return `<span class="selo ${protegido(grupo)}">${NOME_GRUPO[grupo] || protegido(grupo)}</span>`;
 }
 
-function eSaida(alerta) {
-  return alerta.tipo === "resgate_atipico";
+function eSaida(alerta) {            // resgate fora do normal e saida continua sao "saidas"
+  return alerta.tipo !== "captacao_atipica";
+}
+
+// baixa uma tabela como arquivo CSV, que o Excel abre direto (separador ; e virgula decimal)
+function baixarCSV(nome, cabecalho, linhas) {
+  const celula = (v) => {
+    if (v == null) return "";
+    if (typeof v === "number") return String(Math.round(v * 100) / 100).replace(".", ",");
+    const t = String(v);
+    return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const texto = "\uFEFF" + [cabecalho, ...linhas].map((l) => l.map(celula).join(";")).join("\r\n");
+  const url = URL.createObjectURL(new Blob([texto], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url; link.download = nome;
+  document.body.appendChild(link); link.click(); link.remove();
+  URL.revokeObjectURL(url);
+}
+const porCento = (x) => (x == null ? null : x * 100);
+
+function alertasFiltrados() {
+  return todosAlertas.filter((a) =>
+    (filtroGrupo === "todos" || a.grupo === filtroGrupo) &&
+    (filtroTipo === "todos" || a.tipo === filtroTipo || (filtroTipo === "saidas" && eSaida(a))));
 }
 
 // ---------- ABAS (o "endereco" depois do # diz qual tela mostrar) ----------
@@ -138,10 +161,7 @@ function linhaAlerta(a, maiorValor, comNome = true) {
 
 function desenharLista() {
   const lista = document.getElementById("lista");
-  const filtrados = todosAlertas.filter((a) =>
-    (filtroGrupo === "todos" || a.grupo === filtroGrupo) &&
-    (filtroTipo === "todos" || a.tipo === filtroTipo)
-  );
+  const filtrados = alertasFiltrados();
   if (!filtrados.length) {
     lista.innerHTML = `<p class="vazio">Nenhum alerta com esses filtros. Experimente outro grupo ou tipo.</p>`;
     return;
@@ -209,6 +229,11 @@ function ligarBotoes(idCaixa, aoClicar) {
 function iniciar() {
   ligarBotoes("filtro-grupo", (b) => { filtroGrupo = b.dataset.grupo; desenharLista(); });
   ligarBotoes("filtro-tipo", (b) => { filtroTipo = b.dataset.tipo; desenharLista(); });
+  document.getElementById("baixar-alertas").addEventListener("click", () => {
+    const nomeTipo = { resgate_atipico: "Resgate fora do normal", captacao_atipica: "Captação fora do normal", sangria: "Saída contínua" };
+    baixarCSV("radar-alertas.csv", ["Data", "Grupo", "Fundo", "CNPJ", "Tipo", "Valor (R$)", "Descrição"],
+      alertasFiltrados().map((a) => [dataBR(a.data), NOME_GRUPO[a.grupo] || a.grupo, a.nome, cnpjBonito(a.cnpj), nomeTipo[a.tipo] || a.tipo, a.valor, a.mensagem]));
+  });
   ligarBotoes("busca-grupo", (b) => { buscaGrupo = b.dataset.grupo; pesquisar(); });
   ligarBotoes("busca-classe", (b) => { buscaClasse = b.dataset.classe; pesquisar(); });
 

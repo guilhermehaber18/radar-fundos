@@ -117,6 +117,7 @@ function desenharFundo() {
 
     <section class="no-tempo" id="parecidos"></section>
 
+    <button id="baixar-fundo" class="baixar">Baixar os números do período em Excel</button>
     <details class="tabela">
       <summary>Ver os números em tabela</summary>
       <div class="rolagem"><table>
@@ -135,6 +136,9 @@ function desenharFundo() {
     </section>`;
 
   ligarBotoes("periodo", (b) => { periodo = b.dataset.periodo; desenharFundo(); });
+  document.getElementById("baixar-fundo").addEventListener("click", () =>
+    baixarCSV(`radar-${fundo.cnpj}.csv`, ["Dia", "Patrimônio (R$)", "Cota", "Entradas (R$)", "Saídas (R$)", "Cotistas"],
+      dias.map((d) => [dataBR(d.data), Number(d.patrimonio), d.cota == null ? null : String(d.cota).replace(".", ","), Number(d.captacao), Number(d.resgate), d.cotistas == null ? null : String(d.cotistas)])));
   explicar();                              // a IA comeca a escrever assim que a pagina abre
   carregarParecidos();                     // funcao do categorias-tela.js
   indiceMira = null;

@@ -62,6 +62,7 @@ function desenharCategorias() {
       ${atual.subcategorias.map((s) => `<option value="${protegido(s.nome)}" ${s.nome === catSub ? "selected" : ""}>${protegido(s.nome)} (${numero(s.fundos)})</option>`).join("")}
     </select>
     <p class="info" id="cat-info"></p>
+    <div id="cat-baixar"></div>
     <div id="cat-barra"></div>
     <div id="cat-tabela"><p class="info">Carregando os fundos…</p></div>
     <p class="nota-rodape">A categoria é a que a própria gestora registrou na CVM e na Anbima: fundos da mesma categoria ainda podem ter estratégias diferentes.
@@ -92,7 +93,7 @@ async function carregarFundosDaCategoria() {
     if (!fundos.length) { caixa.innerHTML = `<p class="vazio">Nenhum fundo com esses filtros.</p>`; return; }
 
     caixa.innerHTML = `<div class="rolagem tabela-comparar tabela-cat"><table>
-      <thead><tr><th><span class="so-leitor">Marcar</span></th><th>Fundo</th>
+      <thead><tr><th>Comparar</th><th>Fundo</th>
         ${COLUNAS_CAT.map(([id, nome]) => `<th><button class="ordenar ${id === catOrdem ? "ativo" : ""}" data-ordem="${id}">${nome}${id === catOrdem ? " ↓" : ""}</button></th>`).join("")}
       </tr></thead>
       <tbody>${fundos.map((f) => `<tr>
@@ -102,6 +103,11 @@ async function carregarFundosDaCategoria() {
           ${f.classificacao_anbima && !catSub ? `<span class="data-pequena">${protegido(f.classificacao_anbima)}</span>` : ""}</td>
         ${COLUNAS_CAT.map(([, , valor]) => `<td>${valor(f)}</td>`).join("")}
       </tr>`).join("")}</tbody></table></div>`;
+
+    document.getElementById("cat-baixar").innerHTML = `<button id="baixar-cat" class="baixar">Baixar esta lista em Excel</button>`;
+    document.getElementById("baixar-cat").addEventListener("click", () =>
+      baixarCSV("radar-categoria.csv", ["Fundo", "CNPJ", "Grupo", "Categoria", "Subcategoria", "Patrimônio (R$)", "Rendeu em 1 mês (%)", "Rendeu em 3 meses (%)", "Rendeu em 12 meses (%)", "Entradas menos saídas em 3 meses (R$)"],
+        fundos.map((f) => [f.nome, cnpjBonito(f.cnpj), NOME_GRUPO[f.grupo] || f.grupo, f.classificacao, f.classificacao_anbima, f.patrimonio, porCento(f.rend_1m), porCento(f.rend_3m), porCento(f.rend_12m), f.liq_3m])));
 
     caixa.querySelectorAll(".ordenar").forEach((b) =>
       b.addEventListener("click", () => { catOrdem = b.dataset.ordem; carregarFundosDaCategoria(); }));

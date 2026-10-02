@@ -276,3 +276,10 @@ body {
 .posicao { margin-bottom: 28px; }
 .posicao td:last-child { white-space: normal; }
 #parecidos h3 { font-size: 17px; margin: 0; }
+
+/* Dia 13: botao de baixar em Excel */
+.baixar { font: inherit; font-size: 14px; color: var(--tinta); background: #fff; border: 1px solid var(--linha); border-radius: 6px; padding: 6px 12px; cursor: pointer; margin: 12px 0 4px; }
+.baixar:hover { border-color: var(--tinta); }
+.baixar:focus-visible { outline: 3px solid var(--btg); outline-offset: 2px; }
+.filtros .baixar { margin: 0 0 0 auto; border-radius: 6px; }
+.tabela-cat th:first-child { width: auto; font-size: 12px; padding-right: 6px; }
