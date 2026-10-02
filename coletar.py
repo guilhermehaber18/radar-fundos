@@ -174,14 +174,20 @@ def juntar_metricas(radar, informes):
     fim = cotas.groupby("cnpj").tail(1).rename(columns={"cota": "cota_fim", "data": "data_fim"})
     fim = fim[fim["data_fim"] >= atras(10)]            # so fundos com cota recente
 
+    FOLGA = 7   # a janela baixada comeca no dia 1 do mes: aceitamos ate 7 dias de diferenca do alvo
+
     def rendimento(dias, tabela):
-        ref = tabela[tabela["data"] <= atras(dias)].groupby("cnpj").tail(1)[["cnpj", "cota"]]
-        junto = fim.merge(ref, on="cnpj")
-        return (junto.set_index("cnpj")["cota_fim"] / junto.set_index("cnpj")["cota"] - 1)
+        # cota de referencia: o dia mais proximo do alvo (de preferencia antes; se nao houver, logo depois)
+        perto = tabela[tabela["data"] <= atras(dias - FOLGA)]
+        antes = perto[perto["data"] <= atras(dias)].groupby("cnpj").tail(1)
+        depois = perto[perto["data"] > atras(dias)].groupby("cnpj").head(1)
+        ref = pd.concat([antes, depois]).drop_duplicates("cnpj", keep="first")[["cnpj", "cota"]]
+        junto = fim.merge(ref, on="cnpj").set_index("cnpj")
+        return junto["cota_fim"] / junto["cota"] - 1
 
     metricas = pd.DataFrame(index=radar["cnpj"])
-    metricas["rend_1m"] = rendimento(31, cotas) if inicio_janela <= atras(31) else None
-    metricas["rend_3m"] = rendimento(92, cotas) if inicio_janela <= atras(92) else None
+    metricas["rend_1m"] = rendimento(31, cotas) if inicio_janela <= atras(31 - FOLGA) else None
+    metricas["rend_3m"] = rendimento(92, cotas) if inicio_janela <= atras(92 - FOLGA) else None
 
     # 12 meses: a cota de um ano atras vem da janela baixada (se ela for longa) ou do Supabase
     try:
@@ -199,7 +205,7 @@ def juntar_metricas(radar, informes):
         metricas["rend_12m"] = None
 
     # entradas menos saidas nos ultimos 3 meses
-    if inicio_janela <= atras(92):
+    if inicio_janela <= atras(92 - FOLGA):
         dia = um_por_dia(informes)
         dia = dia[dia["data"] > atras(92)]
         metricas["liq_3m"] = (dia["captacao"].fillna(0) - dia["resgate"].fillna(0)).groupby(dia["cnpj"]).sum()
