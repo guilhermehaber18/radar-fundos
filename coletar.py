@@ -11,6 +11,7 @@ from datetime import date, timedelta
 import pandas as pd
 import requests
 from alertas import gerar_alertas, um_por_dia, JANELA
+from email_resumo import montar_email, enviar_email
 
 # ---------- CONFIGURACAO ----------
 CVM = "https://dados.cvm.gov.br/dados/FI"
@@ -264,6 +265,27 @@ def resumir_classes(radar, informes):
     print(f"Resumo por categoria: {len(resumo)} linhas")
     return resumo
 
+# ---------- PARTE 5: QUAIS ALERTAS SAO NOVOS (para o e-mail) ----------
+def alertas_novos(alertas, existentes, ultima_data):
+    # "novo" = nao estava no banco antes desta coleta. So olhamos os ultimos 10 dias.
+    limite = (date.fromisoformat(ultima_data) - timedelta(days=10)).isoformat()
+    ja_tinha = {(a["cnpj"], a["data"], a["tipo"]) for a in existentes}
+    sangrias_antigas = {}
+    for a in existentes:
+        if a["tipo"] == "sangria":
+            sangrias_antigas.setdefault(a["cnpj"], []).append(a["data"])
+    novos = []
+    for a in para_linhas(alertas):
+        if a["data"] < limite or (a["cnpj"], a["data"], a["tipo"]) in ja_tinha:
+            continue
+        if a["tipo"] == "sangria":
+            # a mesma sequencia de saidas muda de data todo dia: so avisa na primeira vez
+            uma_semana = (date.fromisoformat(a["data"]) - timedelta(days=7)).isoformat()
+            if any(uma_semana <= d <= a["data"] for d in sangrias_antigas.get(a["cnpj"], [])):
+                continue
+        novos.append(a)
+    return novos
+
 # ---------- O ROBO TRABALHANDO ----------
 if __name__ == "__main__":
     for nome in ["SUPABASE_URL", "SUPABASE_SECRET_KEY"]:
@@ -290,9 +312,25 @@ if __name__ == "__main__":
     if len(dias_baixados) > JANELA:
         inicio = dias_baixados[JANELA]
         alertas = alertas[alertas["data"] >= inicio]
+        existentes = buscar(f"alertas?select=cnpj,data,tipo&data=gte.{inicio}&order=cnpj.asc,data.asc,tipo.asc")
         apagar("alertas", f"data=gte.{inicio}")
         enviar("alertas", para_linhas(alertas), "cnpj,data,tipo")
         print(f"  (alertas atualizados de {inicio} em diante)")
+
+        # resumo por e-mail: so os alertas que nao existiam antes desta coleta
+        try:
+            ultima_data = informes["data"].max()
+            if os.environ.get("EMAIL_TESTE") == "sim":      # teste: manda os alertas do dia mais recente
+                dia_teste = alertas["data"].max()
+                novos = para_linhas(alertas[alertas["data"] == dia_teste])
+            else:
+                novos = alertas_novos(alertas, existentes, ultima_data)
+            print(f"Alertas novos para o e-mail: {len(novos)}")
+            fim_de_semana = date.today().weekday() >= 5
+            if novos or not fim_de_semana:                  # no fim de semana, so manda se houver novidade
+                enviar_email(*montar_email(novos, ultima_data))
+        except Exception as erro:
+            print("  Aviso: nao consegui enviar o e-mail:", erro)
     else:
         print("  Poucos dias baixados: alertas nao foram alterados")
 

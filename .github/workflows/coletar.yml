@@ -8,6 +8,9 @@ on:
       meses:
         description: "Quantos meses baixar (use 13 para recalcular o ano inteiro)"
         default: "4"
+      email_teste:
+        description: "Mandar um e-mail de teste com os alertas do dia mais recente? (sim ou nao)"
+        default: "nao"
 
 jobs:
   coletar:
@@ -24,3 +27,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           MESES: ${{ inputs.meses || '4' }}
+          EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
+          EMAIL_SENHA: ${{ secrets.EMAIL_SENHA }}
+          EMAIL_DESTINO: ${{ secrets.EMAIL_DESTINO }}
+          EMAIL_TESTE: ${{ inputs.email_teste || 'nao' }}
