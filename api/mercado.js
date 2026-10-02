@@ -23,17 +23,37 @@ async function buscarTudo(caminho) {
   return linhas;
 }
 
-// corta do fim os dias em que bem menos fundos que o normal ja entregaram o informe
-function cortarDiasIncompletos(linhas) {
-  const porDia = {};
-  for (const l of linhas) porDia[l.data] = (porDia[l.data] || 0) + l.fundos;
-  const datas = Object.keys(porDia).sort();
-  const ultimos = datas.slice(-30).map((d) => porDia[d]).sort((a, b) => a - b);
-  const normal = ultimos[Math.floor(ultimos.length / 2)] || 0;
-  let fim = datas.length;
-  while (fim > 0 && porDia[datas[fim - 1]] < 0.95 * normal) fim--;
-  const ultimaBoa = datas[fim - 1];
-  return linhas.filter((l) => l.data <= ultimaBoa);
+// mediana = o valor "do meio" de uma lista (nao se deixa enganar por um dia maluco)
+function mediana(lista) {
+  const o = [...lista].sort((a, b) => a - b);
+  return o[Math.floor(o.length / 2)] || 0;
+}
+
+// Tira os dias com "buraco": dias em que alguma casa aparece com bem menos patrimonio
+// do que nos dias vizinhos (sinal de que parte dos fundos dela nao entrou na conta).
+// Nesses dias o total do mercado encolhe e a fatia de todo mundo parece maior do que e.
+const VIZINHOS = 5;   // olha 5 dias para tras e 5 para a frente
+const QUEDA = 0.88;   // buraco = menos de 88% do normal da casa
+function tirarDiasComBuraco(linhas) {
+  const datas = [...new Set(linhas.map((l) => l.data))].sort();
+  const pos = {};
+  datas.forEach((d, i) => (pos[d] = i));
+  const porCasa = {};
+  const total = datas.map(() => 0);
+  for (const l of linhas) {
+    if (!porCasa[l.casa]) porCasa[l.casa] = datas.map(() => 0);
+    porCasa[l.casa][pos[l.data]] = l.patrimonio || 0;
+    total[pos[l.data]] += l.patrimonio || 0;
+  }
+  const series = [total, ...Object.values(porCasa)];
+  const ruins = new Set();
+  for (const serie of series) {
+    for (let i = 0; i < datas.length; i++) {
+      const normal = mediana(serie.slice(Math.max(0, i - VIZINHOS), i + VIZINHOS + 1));
+      if (normal > 0 && serie[i] < QUEDA * normal) ruins.add(datas[i]);
+    }
+  }
+  return linhas.filter((l) => !ruins.has(l.data));
 }
 
 module.exports = async (req, res) => {
@@ -43,7 +63,7 @@ module.exports = async (req, res) => {
     p.append("classe", `eq.${classe}`);
     const linhas = await buscarTudo(`resumo_mercado?${p}`);
     res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=7200");
-    res.status(200).json(cortarDiasIncompletos(linhas));
+    res.status(200).json(tirarDiasComBuraco(linhas));
   } catch (erro) {
     res.status(500).json({ erro: erro.message });
   }
