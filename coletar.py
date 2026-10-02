@@ -153,6 +153,7 @@ def montar_lista():
     return radar
 
 # ---------- PARTE 1a: DUPLA CONTAGEM (carteira mensal dos fundos) ----------
+ESPERA_CARTEIRA = 4          # quantos meses esperar ate a carteira estar toda aberta
 MIN_FUNDOS_CARTEIRA = 15000   # um mes so vale se pelo menos 15 mil fundos ja entregaram a carteira
 
 def ler_carteiras():
@@ -162,7 +163,11 @@ def ler_carteiras():
     global FATIA_EM_FUNDOS
     try:
         hoje = date.today()
-        ano, mes = hoje.year, hoje.month
+        # os fundos podem esconder a carteira por ate 90 dias: os meses mais novos vem pela metade.
+        # Por isso comecamos 4 meses atras (em outubro, usamos junho).
+        ano, mes = hoje.year, hoje.month - ESPERA_CARTEIRA
+        if mes <= 0:
+            ano, mes = ano - 1, mes + 12
         achou = None
         for _ in range(12):
             aaaamm = f"{ano}{mes:02d}"
