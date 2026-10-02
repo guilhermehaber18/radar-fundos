@@ -89,8 +89,28 @@ def buscar(caminho):  # le do Supabase em "paginas" de 1.000 linhas
             return linhas
         inicio += 1000
 
+MAPA_MERCADO = None     # preenchido em montar_lista
+PEDACOS_MERCADO = []    # totais do mercado, um pedaco por mes baixado
+
 def para_linhas(df):  # tabela do pandas -> lista de dicionarios (vazio vira null)
     return df.astype(object).where(df.notna(), None).to_dict(orient="records")
+
+# ---------- MERCADO INTEIRO: de qual "casa" e cada gestor ----------
+CLASSES_MERCADO = ["Renda Fixa", "Multimercado", "Ações"]
+PALAVRAS_VAZIAS = {"BANCO", "BCO", "DO", "DA", "DE", "E"}
+TOP_CASAS = 20        # guardamos as 20 maiores casas (mais os nossos 4 grupos); o resto vira "OUTRAS"
+
+def casa_do_gestor(gestor):
+    # junta as varias empresas de um mesmo grupo: usa as nossas 4 regras e, para as outras,
+    # a primeira palavra "de verdade" do nome (BB GESTAO... -> BB, SAFRA ASSET... -> SAFRA)
+    nome = limpar(gestor) if isinstance(gestor, str) else ""
+    for grupo, padrao in GRUPOS.items():
+        if re.search(padrao, nome):
+            return grupo
+    if nome.startswith("BANCO DO BRASIL"):
+        return "BB"
+    palavras = [p for p in re.split(r"[^A-Z0-9]+", nome) if len(p) > 1 and p not in PALAVRAS_VAZIAS]
+    return palavras[0] if palavras else "OUTRAS"
 
 # ---------- PARTE 1: LISTA DE FUNDOS ----------
 def montar_lista():
@@ -99,6 +119,16 @@ def montar_lista():
     classes = ler_csv(pacote, "registro_classe.csv")
     tudo = classes.merge(fundos, on="ID_Registro_Fundo", how="left")
     tudo = tudo[(tudo["Situacao"] == "Em Funcionamento Normal") & (tudo["Exclusivo"] != "S")].copy()
+
+    # mapa do mercado inteiro: CNPJ -> casa e categoria (so usamos os totais, nao guardamos fundo a fundo)
+    global MAPA_MERCADO
+    mercado = tudo[tudo["Classificacao"].isin(CLASSES_MERCADO)] if "Classificacao" in tudo else tudo.iloc[0:0]
+    MAPA_MERCADO = pd.DataFrame({
+        "cnpj": mercado["CNPJ_Classe"].map(so_numeros),
+        "casa": mercado["Gestor"].map(casa_do_gestor),
+        "classe": mercado["Classificacao"],
+    }).drop_duplicates("cnpj")
+    print(f"Mercado inteiro: {len(MAPA_MERCADO)} fundos de {MAPA_MERCADO['casa'].nunique()} casas")
 
     tudo["grupo"] = None
     gestor_limpo = tudo["Gestor"].map(limpar)
@@ -120,6 +150,41 @@ def montar_lista():
     print(f"Lista do Radar: {len(radar)} fundos")
     return radar
 
+# ---------- PARTE 1b: TOTAIS DO MERCADO (um mes por vez, para nao encher a memoria) ----------
+def somar_mercado(df):
+    if MAPA_MERCADO is None or MAPA_MERCADO.empty:
+        return
+    d = df[df["cnpj"].isin(set(MAPA_MERCADO["cnpj"]))].copy()
+    if "ID_SUBCLASSE" not in d:
+        d["ID_SUBCLASSE"] = ""
+    # se o fundo manda uma linha "geral", ela vale; se so manda subclasses, somamos as subclasses
+    d["geral"] = d["ID_SUBCLASSE"].fillna("") == ""
+    tem_geral = d.groupby(["cnpj", "DT_COMPTC"])["geral"].transform("any")
+    d = d[d["geral"] | ~tem_geral]
+    for coluna in ["VL_PATRIM_LIQ", "CAPTC_DIA", "RESG_DIA"]:
+        d[coluna] = pd.to_numeric(d[coluna], errors="coerce").fillna(0)
+    d = d.merge(MAPA_MERCADO, on="cnpj")
+    PEDACOS_MERCADO.append(d.groupby(["casa", "classe", "DT_COMPTC"], as_index=False).agg(
+        patrimonio=("VL_PATRIM_LIQ", "sum"), captacao=("CAPTC_DIA", "sum"),
+        resgate=("RESG_DIA", "sum"), fundos=("cnpj", "nunique")).rename(columns={"DT_COMPTC": "data"}))
+
+def resumir_mercado():
+    if not PEDACOS_MERCADO:
+        return pd.DataFrame()
+    tudo = pd.concat(PEDACOS_MERCADO)
+    # as maiores casas: pelo patrimonio medio dos ultimos 20 dias (um dia sozinho pode estar incompleto)
+    recentes = sorted(tudo["data"].unique())[-20:]
+    tamanho = tudo[tudo["data"].isin(recentes)].groupby("casa")["patrimonio"].sum().sort_values(ascending=False)
+    grandes = set(tamanho.index[:TOP_CASAS]) | set(GRUPOS)
+    tudo["casa"] = tudo["casa"].where(tudo["casa"].isin(grandes), "OUTRAS")
+    numeros = ["patrimonio", "captacao", "resgate", "fundos"]
+    por_classe = tudo.groupby(["casa", "classe", "data"], as_index=False)[numeros].sum()
+    todas = por_classe.groupby(["casa", "data"], as_index=False)[numeros].sum().assign(classe="Todas")
+    resumo = pd.concat([por_classe, todas], ignore_index=True)
+    print(f"Resumo do mercado: {len(resumo)} linhas, {len(grandes)} casas + OUTRAS")
+    print("  Maiores casas:", ", ".join(tamanho.index[:8]))
+    return resumo
+
 # ---------- PARTE 2: INFORMES DIARIOS ----------
 def ler_informes(cnpjs_do_radar):
     partes = []
@@ -133,6 +198,7 @@ def ler_informes(cnpjs_do_radar):
         coluna_cnpj = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df else "CNPJ_FUNDO"  # arquivos antigos
         df["cnpj"] = df[coluna_cnpj].map(so_numeros)
         partes.append(df[df["cnpj"].isin(cnpjs_do_radar)])
+        somar_mercado(df)
 
     inf = pd.concat(partes)
     if "ID_SUBCLASSE" not in inf:
@@ -303,6 +369,9 @@ if __name__ == "__main__":
 
     enviar("resumo_grupos", para_linhas(resumir_grupos(radar, informes)), "grupo,data")
     enviar("resumo_classes", para_linhas(resumir_classes(radar, informes)), "grupo,classe,data")
+    mercado = resumir_mercado()
+    if len(mercado):
+        enviar("resumo_mercado", para_linhas(mercado), "casa,classe,data")
 
     # Os primeiros dias baixados nao tem "ultimo mes" completo para comparar.
     # Por isso so mexemos nos alertas a partir do dia em que o historico ja esta completo;
@@ -336,7 +405,7 @@ if __name__ == "__main__":
 
     # Faxina: a geladeira guarda pouco mais de 1 ano
     limite = (date.today() - timedelta(days=GUARDAR_DIAS)).isoformat()
-    for tabela in ["informes", "alertas", "resumo_grupos", "resumo_classes"]:
+    for tabela in ["informes", "alertas", "resumo_grupos", "resumo_classes", "resumo_mercado"]:
         apagar(tabela, f"data=lt.{limite}")
     print(f"Faxina: apagado o que era anterior a {limite}")
 

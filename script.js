@@ -73,7 +73,7 @@ function alertasFiltrados() {
 
 // ---------- ABAS (o "endereco" depois do # diz qual tela mostrar) ----------
 function mostrarTela(nome) {
-  for (const t of ["alertas", "pesquisa", "categorias", "comparar", "rivais", "fundo"]) {
+  for (const t of ["alertas", "pesquisa", "categorias", "comparar", "rivais", "mercado", "fundo"]) {
     document.getElementById(`tela-${t}`).hidden = t !== nome;
   }
   document.querySelectorAll(".abas a").forEach((a) => {
@@ -92,6 +92,9 @@ function rotear() {
   } else if (endereco.startsWith("comparar")) {
     mostrarTela("comparar");
     abrirComparar((endereco.split("/")[1] || "").split(",").filter(Boolean));   // funcao do comparar.js
+  } else if (endereco === "mercado") {
+    mostrarTela("mercado");
+    abrirMercado();                                   // funcao do mercado-tela.js
   } else if (endereco === "rivais") {
     mostrarTela("rivais");
     abrirRivais();                                    // funcao do comparar.js
