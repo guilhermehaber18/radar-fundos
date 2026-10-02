@@ -16,6 +16,7 @@ from email_resumo import montar_email, enviar_email
 # ---------- CONFIGURACAO ----------
 CVM = "https://dados.cvm.gov.br/dados/FI"
 URL_CADASTRO = f"{CVM}/CAD/DADOS/registro_fundo_classe.zip"
+URL_CARTEIRA = f"{CVM}/DOC/CDA/DADOS/cda_fi_{{mes}}.zip"
 URL_INFORME = f"{CVM}/DOC/INF_DIARIO/DADOS/inf_diario_fi_{{mes}}.zip"
 MESES = int(os.environ.get("MESES", "4"))  # quantos meses baixar (o atual e os anteriores)
 GUARDAR_DIAS = 400                         # faxina: apaga o que for mais antigo que isso
@@ -91,6 +92,7 @@ def buscar(caminho):  # le do Supabase em "paginas" de 1.000 linhas
 
 MAPA_MERCADO = None     # preenchido em montar_lista
 PEDACOS_MERCADO = []    # totais do mercado, um pedaco por mes baixado
+FATIA_EM_FUNDOS = {}    # CNPJ -> que pedaco do fundo esta em cotas de outros fundos ja contados (0 a 1)
 
 def para_linhas(df):  # tabela do pandas -> lista de dicionarios (vazio vira null)
     return df.astype(object).where(df.notna(), None).to_dict(orient="records")
@@ -150,6 +152,64 @@ def montar_lista():
     print(f"Lista do Radar: {len(radar)} fundos")
     return radar
 
+# ---------- PARTE 1a: DUPLA CONTAGEM (carteira mensal dos fundos) ----------
+MIN_FUNDOS_CARTEIRA = 15000   # um mes so vale se pelo menos 15 mil fundos ja entregaram a carteira
+
+def ler_carteiras():
+    # Fundo que investe em outro fundo: o mesmo dinheiro aparece no patrimonio dos dois.
+    # Aqui descobrimos, para cada fundo, que pedaco dele esta em cotas de fundos que ja estao na nossa conta.
+    # A carteira e mensal e sai com uns 3 meses de atraso: e uma aproximacao.
+    global FATIA_EM_FUNDOS
+    try:
+        hoje = date.today()
+        ano, mes = hoje.year, hoje.month
+        achou = None
+        for _ in range(12):
+            aaaamm = f"{ano}{mes:02d}"
+            r = requests.get(URL_CARTEIRA.format(mes=aaaamm), timeout=600)
+            if r.status_code == 200:
+                pacote = zipfile.ZipFile(io.BytesIO(r.content))
+                pl = ler_csv(pacote, f"cda_fi_PL_{aaaamm}.csv")
+                if len(pl) >= MIN_FUNDOS_CARTEIRA:
+                    achou = aaaamm
+                    break
+            mes -= 1
+            if mes == 0:
+                ano, mes = ano - 1, 12
+        if not achou:
+            print("Dupla contagem: nao achei um mes de carteiras completo; sigo sem descontar")
+            return
+        cotas = ler_csv(pacote, f"cda_fi_BLC_2_{achou}.csv")
+        mapa = MAPA_MERCADO.set_index("cnpj")["casa"]
+        cotas["dono"] = cotas["CNPJ_FUNDO_CLASSE"].map(so_numeros)
+        cotas["alvo"] = cotas["CNPJ_FUNDO_CLASSE_COTA"].map(so_numeros)
+        cotas["valor"] = pd.to_numeric(cotas["VL_MERC_POS_FINAL"], errors="coerce").fillna(0)
+        # so conta em dobro se os DOIS fundos estao na nossa soma do mercado
+        cotas = cotas[cotas["dono"].isin(mapa.index) & cotas["alvo"].isin(mapa.index)
+                      & (cotas["dono"] != cotas["alvo"]) & (cotas["valor"] > 0)].copy()
+        em_fundos = cotas.groupby("dono")["valor"].sum()
+        pl["cnpj"] = pl["CNPJ_FUNDO_CLASSE"].map(so_numeros)
+        pl["pl"] = pd.to_numeric(pl["VL_PATRIM_LIQ"], errors="coerce")
+        patrimonio = pl.groupby("cnpj")["pl"].max()
+        patrimonio = patrimonio[patrimonio > 0]
+        fatia = (em_fundos / patrimonio).dropna().clip(0, 1)
+        FATIA_EM_FUNDOS = fatia.to_dict()
+
+        # resumo na tela, para a gente conferir
+        mesma = cotas[cotas["dono"].map(mapa) == cotas["alvo"].map(mapa)]["valor"].sum()
+        total = cotas["valor"].sum()
+        print(f"Dupla contagem (carteiras de {achou[4:]}/{achou[:4]}): R$ {total / 1e9:,.1f} bi em {len(fatia)} fundos")
+        if total:
+            print(f"  {100 * mesma / total:.0f}% disso e fundo investindo em fundo da MESMA casa")
+        bruto = patrimonio[patrimonio.index.isin(mapa.index)].groupby(mapa).sum()
+        descontado = (fatia * patrimonio).dropna()
+        dupla = descontado.groupby(mapa).sum()
+        for casa in bruto.sort_values(ascending=False).index[:8]:
+            print(f"  {casa}: {100 * dupla.get(casa, 0) / bruto[casa]:.0f}% do patrimonio esta em cotas de outros fundos")
+    except Exception as erro:  # se a CVM mudar o arquivo, o robo continua (so nao desconta)
+        FATIA_EM_FUNDOS = {}
+        print("Dupla contagem: nao consegui ler as carteiras; sigo sem descontar. Motivo:", erro)
+
 # ---------- PARTE 1b: TOTAIS DO MERCADO (um mes por vez, para nao encher a memoria) ----------
 def somar_mercado(df):
     if MAPA_MERCADO is None or MAPA_MERCADO.empty:
@@ -163,9 +223,11 @@ def somar_mercado(df):
     d = d[d["geral"] | ~tem_geral]
     for coluna in ["VL_PATRIM_LIQ", "CAPTC_DIA", "RESG_DIA"]:
         d[coluna] = pd.to_numeric(d[coluna], errors="coerce").fillna(0)
+    # patrimonio sem a parte que esta em cotas de outros fundos (para nao contar duas vezes)
+    d["sem_dupla"] = d["VL_PATRIM_LIQ"] * (1 - d["cnpj"].map(FATIA_EM_FUNDOS).fillna(0))
     d = d.merge(MAPA_MERCADO, on="cnpj")
     PEDACOS_MERCADO.append(d.groupby(["casa", "classe", "DT_COMPTC"], as_index=False).agg(
-        patrimonio=("VL_PATRIM_LIQ", "sum"), captacao=("CAPTC_DIA", "sum"),
+        patrimonio=("VL_PATRIM_LIQ", "sum"), patrimonio_sem_dupla=("sem_dupla", "sum"), captacao=("CAPTC_DIA", "sum"),
         resgate=("RESG_DIA", "sum"), fundos=("cnpj", "nunique")).rename(columns={"DT_COMPTC": "data"}))
 
 def resumir_mercado():
@@ -177,7 +239,7 @@ def resumir_mercado():
     tamanho = tudo[tudo["data"].isin(recentes)].groupby("casa")["patrimonio"].sum().sort_values(ascending=False)
     grandes = set(tamanho.index[:TOP_CASAS]) | set(GRUPOS)
     tudo["casa"] = tudo["casa"].where(tudo["casa"].isin(grandes), "OUTRAS")
-    numeros = ["patrimonio", "captacao", "resgate", "fundos"]
+    numeros = ["patrimonio", "patrimonio_sem_dupla", "captacao", "resgate", "fundos"]
     por_classe = tudo.groupby(["casa", "classe", "data"], as_index=False)[numeros].sum()
     todas = por_classe.groupby(["casa", "data"], as_index=False)[numeros].sum().assign(classe="Todas")
     resumo = pd.concat([por_classe, todas], ignore_index=True)
@@ -359,6 +421,7 @@ if __name__ == "__main__":
             sys.exit(f"ERRO: falta a chave {nome}. Use: set {nome}=...")
 
     radar = montar_lista()
+    ler_carteiras()
     informes = ler_informes(set(radar["cnpj"]))
     radar = juntar_ultima_foto(radar, informes)
     radar = juntar_metricas(radar, informes)
