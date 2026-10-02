@@ -132,6 +132,30 @@ function desenharBarraMarcados() {
   });
 }
 
+// ---------- POSICAO DO FUNDO NA CATEGORIA ----------
+function faixaDaPosicao(pos, n) {
+  const q = pos / n;
+  if (q <= 0.10) return "entre os 10% que mais renderam";
+  if (q <= 0.25) return "entre os 25% que mais renderam";
+  if (q <= 0.50) return "na metade de cima";
+  if (q <= 0.75) return "na metade de baixo";
+  return "entre os 25% que menos renderam";
+}
+
+function quadroPosicao(f) {
+  const linhas = [["3 meses", f.rend_3m, f.pos_3m, f.n_3m], ["12 meses", f.rend_12m, f.pos_12m, f.n_12m]]
+    .filter(([, , pos, n]) => pos && n)
+    .map(([prazo, rend, pos, n]) => `<tr><td>${prazo}</td><td>${pct(rend)}</td>
+      <td>${numero(pos)}º de ${numero(n)}</td><td>${faixaDaPosicao(pos, n)}</td></tr>`).join("");
+  if (!linhas) return "";
+  return `
+    <h3>Posição na categoria</h3>
+    <p class="info">Comparado com os fundos de ${protegido(f.cat_base)} de BTG, Itaú, XP e Bradesco com pelo menos R$ 50 milhões. Não é o mercado inteiro.</p>
+    <div class="rolagem tabela-comparar posicao"><table>
+      <thead><tr><th>Prazo</th><th>Rendimento</th><th>Posição</th><th>Faixa</th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`;
+}
+
 // ---------- FUNDOS PARECIDOS (na pagina do fundo) ----------
 async function carregarParecidos() {
   const caixa = document.getElementById("parecidos");
@@ -148,6 +172,7 @@ async function carregarParecidos() {
     const outros = lista.filter((x) => x.cnpj !== f.cnpj).slice(0, 6);
     const categoria = f.classificacao_anbima || f.classificacao;
     caixa.innerHTML = `
+      ${quadroPosicao(f)}
       <h3>Fundos parecidos</h3>
       <p class="info">Os maiores da mesma categoria (${protegido(categoria)}). <a href="${enderecoCategoria(f.classificacao, f.classificacao_anbima || "")}">Ver todos</a></p>
       ${outros.length ? `<div class="rolagem tabela-comparar"><table>

@@ -217,6 +217,33 @@ def juntar_metricas(radar, informes):
           f"{metricas['rend_12m'].notna().sum()} com 12 meses")
     return radar.merge(metricas, on="cnpj", how="left")
 
+# ---------- PARTE 3c: POSICAO DO FUNDO NA CATEGORIA ----------
+def juntar_posicoes(radar):
+    # compara cada fundo com os da mesma subcategoria (Anbima); se ela tiver menos de 10 fundos, usa a categoria da CVM
+    r = radar.copy()
+    elegivel = (r["patrimonio"] >= 50_000_000) & r["classificacao"].notna()
+    tamanho_sub = r[elegivel].groupby("classificacao_anbima")["cnpj"].transform("count")
+    r["cat_base"] = None
+    r.loc[elegivel, "cat_base"] = r.loc[elegivel, "classificacao"]
+    usar_sub = elegivel & r["classificacao_anbima"].notna()
+    usar_sub.loc[elegivel] &= (tamanho_sub.reindex(r.index[elegivel]).fillna(0) >= 10).values
+    r.loc[usar_sub, "cat_base"] = r.loc[usar_sub, "classificacao_anbima"]
+
+    for prazo in ["3m", "12m"]:
+        valido = r[elegivel & r[f"rend_{prazo}"].notna()]
+        # posicao dentro da subcategoria e dentro da categoria inteira (1 = quem mais rendeu)
+        na_sub = valido.groupby("classificacao_anbima")[f"rend_{prazo}"]
+        na_classe = valido.groupby("classificacao")[f"rend_{prazo}"]
+        pos = na_classe.rank(ascending=False, method="min")
+        n = na_classe.transform("count")
+        pela_sub = usar_sub.reindex(valido.index)
+        pos[pela_sub] = na_sub.rank(ascending=False, method="min")[pela_sub]
+        n[pela_sub] = na_sub.transform("count")[pela_sub]
+        r[f"pos_{prazo}"] = pos.astype("Int64")
+        r[f"n_{prazo}"] = n.astype("Int64")
+    print(f"Posicoes: {r['pos_12m'].notna().sum()} fundos com posicao de 12 meses na categoria")
+    return r
+
 # ---------- PARTE 4: RESUMO POR GRUPO (BTG x Itau x XP x Bradesco) ----------
 def resumir_grupos(radar, informes):
     # soma, para cada grupo e cada dia, o patrimonio, as entradas e as saidas de todos os fundos
@@ -225,6 +252,16 @@ def resumir_grupos(radar, informes):
         patrimonio=("patrimonio", "sum"), captacao=("captacao", "sum"),
         resgate=("resgate", "sum"), fundos=("cnpj", "count"))
     print(f"Resumo por grupo: {len(resumo)} linhas")
+    return resumo
+
+def resumir_classes(radar, informes):
+    # o mesmo resumo, separado por categoria (Renda Fixa, Multimercado, Acoes)
+    com_classe = radar[radar["classificacao"].notna()][["cnpj", "grupo", "classificacao"]]
+    dia = um_por_dia(informes).merge(com_classe, on="cnpj", how="inner").rename(columns={"classificacao": "classe"})
+    resumo = dia.groupby(["grupo", "classe", "data"], as_index=False).agg(
+        patrimonio=("patrimonio", "sum"), captacao=("captacao", "sum"),
+        resgate=("resgate", "sum"), fundos=("cnpj", "count"))
+    print(f"Resumo por categoria: {len(resumo)} linhas")
     return resumo
 
 # ---------- O ROBO TRABALHANDO ----------
@@ -237,11 +274,13 @@ if __name__ == "__main__":
     informes = ler_informes(set(radar["cnpj"]))
     radar = juntar_ultima_foto(radar, informes)
     radar = juntar_metricas(radar, informes)
+    radar = juntar_posicoes(radar)
 
     enviar("fundos", para_linhas(radar), "cnpj")
     enviar("informes", para_linhas(informes), "cnpj,subclasse,data")
 
     enviar("resumo_grupos", para_linhas(resumir_grupos(radar, informes)), "grupo,data")
+    enviar("resumo_classes", para_linhas(resumir_classes(radar, informes)), "grupo,classe,data")
 
     # Os primeiros dias baixados nao tem "ultimo mes" completo para comparar.
     # Por isso so mexemos nos alertas a partir do dia em que o historico ja esta completo;
@@ -259,7 +298,7 @@ if __name__ == "__main__":
 
     # Faxina: a geladeira guarda pouco mais de 1 ano
     limite = (date.today() - timedelta(days=GUARDAR_DIAS)).isoformat()
-    for tabela in ["informes", "alertas", "resumo_grupos"]:
+    for tabela in ["informes", "alertas", "resumo_grupos", "resumo_classes"]:
         apagar(tabela, f"data=lt.{limite}")
     print(f"Faxina: apagado o que era anterior a {limite}")
 

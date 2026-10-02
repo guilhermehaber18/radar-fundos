@@ -20,7 +20,10 @@ async function buscarTudo(caminho) {
 function cortarDiasIncompletos(linhas) {
   const datas = [...new Set(linhas.map((l) => l.data))].sort();
   const porGrupo = {};
-  for (const l of linhas) (porGrupo[l.grupo] ||= {})[l.data] = l.fundos;
+  for (const l of linhas) {
+    const dias = (porGrupo[l.grupo] ||= {});
+    dias[l.data] = (dias[l.data] || 0) + l.fundos;          // soma as categorias do mesmo grupo
+  }
 
   const normal = {};                                  // mediana dos ultimos 30 dias de cada grupo
   for (const [g, dias] of Object.entries(porGrupo)) {
@@ -35,7 +38,11 @@ function cortarDiasIncompletos(linhas) {
 
 module.exports = async (req, res) => {
   try {
-    const linhas = await buscarTudo("resumo_grupos?select=grupo,data,patrimonio,captacao,resgate,fundos&order=data.asc,grupo.asc");
+    // /api/resumo            -> total de cada grupo por dia
+    // /api/resumo?por=classe -> o mesmo, separado por categoria (Renda Fixa, Multimercado, Acoes)
+    const linhas = req.query.por === "classe"
+      ? await buscarTudo("resumo_classes?select=grupo,classe,data,patrimonio,captacao,resgate,fundos&order=data.asc,grupo.asc,classe.asc")
+      : await buscarTudo("resumo_grupos?select=grupo,data,patrimonio,captacao,resgate,fundos&order=data.asc,grupo.asc");
     res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=7200");
     res.status(200).json(cortarDiasIncompletos(linhas));
   } catch (erro) {

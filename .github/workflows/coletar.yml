@@ -4,11 +4,15 @@ on:
   schedule:
     - cron: "0 12 * * *"   # todo dia 12:00 UTC = 9h em Brasilia
   workflow_dispatch:         # botao para rodar na mao
+    inputs:
+      meses:
+        description: "Quantos meses baixar (use 13 para recalcular o ano inteiro)"
+        default: "4"
 
 jobs:
   coletar:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -19,4 +23,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          MESES: "4"
+          MESES: ${{ inputs.meses || '4' }}

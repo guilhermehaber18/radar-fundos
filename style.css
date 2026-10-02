@@ -268,3 +268,11 @@ body {
 @media (prefers-reduced-motion: reduce) { #cat-tabela { transition: none; } }
 .tabela-cat td:first-child, .tabela-cat th:first-child { min-width: 0; width: 34px; padding-right: 0; }
 .tabela-cat td:nth-child(2) { width: 46%; }
+
+/* Dia 12: captacao por categoria e posicao na categoria */
+.sinal { font-weight: 800; }
+.sinal.entrada { color: var(--entrada); }
+.sinal.saida { color: var(--saida); }
+.posicao { margin-bottom: 28px; }
+.posicao td:last-child { white-space: normal; }
+#parecidos h3 { font-size: 17px; margin: 0; }

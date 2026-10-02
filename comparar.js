@@ -13,6 +13,9 @@ let comparados = [];                 // lista de CNPJs na comparacao
 const albuns = new Map();            // CNPJ -> resposta do /api/historico (guardada para nao buscar de novo)
 let periodoComparar = "1A";
 let resumoGrupos = null;
+let resumoClasses = [];              // o mesmo resumo, separado por categoria
+let classeRivais = "";               // "" = todas as categorias
+const CLASSES_RIVAIS = ["Renda Fixa", "Multimercado", "Ações"];
 let periodoRivais = "1A";
 let esperaComparar = null;
 
@@ -236,10 +239,11 @@ async function abrirRivais() {
   if (resumoGrupos) { desenharRivais(); return; }
   tela.innerHTML = `<p class="info">Carregando o resumo dos grupos…</p>`;
   try {
-    const r = await fetch("/api/resumo");
+    const [r, r2] = await Promise.all([fetch("/api/resumo"), fetch("/api/resumo?por=classe")]);
     const dados = await r.json();
     if (!r.ok) throw new Error(dados.erro || `erro ${r.status}`);
     resumoGrupos = dados;
+    resumoClasses = r2.ok ? await r2.json() : [];     // se a parte por categoria falhar, a tela continua funcionando
     desenharRivais();
   } catch (erro) {
     tela.innerHTML = `<p class="erro">Não consegui carregar o resumo (${protegido(erro.message)}).</p>`;
@@ -253,8 +257,9 @@ function desenharRivais() {
   const inicio = corte(ultima, periodoRivais);
   const nomePeriodo = PERIODOS[periodoRivais][1];
 
+  const fonte = classeRivais ? resumoClasses.filter((l) => l.classe === classeRivais && l.data <= ultima) : resumoGrupos;
   const grupos = ORDEM_GRUPOS.map((g) => {
-    const dias = resumoGrupos.filter((l) => l.grupo === g && l.data >= inicio);
+    const dias = fonte.filter((l) => l.grupo === g && l.data >= inicio);
     if (!dias.length) return null;
     let acumulado = 0;
     const pontos = dias.map((d) => {
@@ -266,6 +271,22 @@ function desenharRivais() {
   }).filter(Boolean);
 
   const inicioReal = grupos.map((x) => x.pontos[0].data).sort()[0] || inicio;   // primeiro dia que existe de verdade
+
+  // quadro "onde cada grupo ganhou e perdeu": entradas menos saidas por grupo e por categoria
+  const liquido = (g, c) => resumoClasses.filter((l) => l.grupo === g && l.classe === c && l.data >= inicio && l.data <= ultima)
+    .reduce((t, l) => t + (Number(l.captacao) || 0) - (Number(l.resgate) || 0), 0);
+  const celula = (v) => `<td><span class="sinal ${v >= 0 ? "entrada" : "saida"}">${v >= 0 ? "↑" : "↓"}</span> ${reais(v)}</td>`;
+  const quadro = resumoClasses.length ? `
+    <figure class="figura-barras"><figcaption>Onde cada grupo ganhou e perdeu dinheiro em ${nomePeriodo}</figcaption>
+      <div class="rolagem tabela-comparar"><table>
+        <thead><tr><th>Grupo</th>${CLASSES_RIVAIS.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
+        <tbody>${ORDEM_GRUPOS.map((g) => `<tr><td>${selo(g)}</td>${CLASSES_RIVAIS.map((c) => celula(liquido(g, c))).join("")}</tr>`).join("")}</tbody>
+      </table></div></figure>` : "";
+  const botoesClasse = resumoClasses.length ? `<div class="filtros filtros-busca"><div class="grupo-botoes" id="classe-rivais">
+      ${[["", "Todas as categorias"], ...CLASSES_RIVAIS.map((c) => [c, c])].map(([v, nome]) =>
+        `<button data-classe="${v}" class="${v === classeRivais ? "ativo" : ""}">${nome}</button>`).join("")}
+    </div></div>` : "";
+  const sufixo = classeRivais ? ` (${classeRivais})` : "";
 
   // barras horizontais: entradas menos saidas no periodo (verde = entrou mais, vermelho = saiu mais)
   const maior = Math.max(1, ...grupos.map((x) => Math.abs(x.liquido)));
@@ -283,9 +304,11 @@ function desenharRivais() {
     <p class="subtitulo">Quanto dinheiro entrou ou saiu dos fundos de cada grupo, somando todos os fundos dele.</p>
     ${botoesPeriodo("periodo-rivais", periodoRivais)}
     <p class="info">De ${dataBR(inicioReal)} a ${dataBR(ultima)}.</p>
-    <figure class="figura-barras"><figcaption>Entradas menos saídas em ${nomePeriodo}</figcaption>
+    ${quadro}
+    ${botoesClasse}
+    <figure class="figura-barras"><figcaption>Entradas menos saídas em ${nomePeriodo}${sufixo}</figcaption>
       <ul class="barras-h">${barras}</ul></figure>
-    <div class="graficos"><figure><figcaption>Entradas menos saídas, acumulado no período</figcaption>
+    <div class="graficos"><figure><figcaption>Entradas menos saídas, acumulado no período${sufixo}</figcaption>
       <div id="g-rivais"></div></figure></div>
     <div class="rolagem tabela-comparar"><table>
       <thead><tr><th>Grupo</th><th>Fundos</th><th>Patrimônio em ${dataBR(ultima)}</th><th>Patrimônio no período</th><th>Entradas menos saídas</th></tr></thead>
@@ -298,6 +321,7 @@ function desenharRivais() {
 
   graficoLinhas("g-rivais", grupos.map((x) => ({ nome: NOME_GRUPO[x.g], cor: COR_GRUPO[x.g], pontos: x.pontos })), reais, { referencia: 0 });
   ligarBotoes("periodo-rivais", (b) => { periodoRivais = b.dataset.periodo; desenharRivais(); });
+  if (resumoClasses.length) ligarBotoes("classe-rivais", (b) => { classeRivais = b.dataset.classe; desenharRivais(); });
 }
 
 // ---------- A IA COMENTANDO A COMPARACAO ----------
