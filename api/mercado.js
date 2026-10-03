@@ -29,12 +29,12 @@ function mediana(lista) {
   return o[Math.floor(o.length / 2)] || 0;
 }
 
-// Tira os dias com "buraco": dias em que alguma casa aparece com bem menos patrimonio
+// Marca os dias com "buraco": dias em que alguma casa aparece com bem menos patrimonio
 // do que nos dias vizinhos (sinal de que parte dos fundos dela nao entrou na conta).
 // Nesses dias o total do mercado encolhe e a fatia de todo mundo parece maior do que e.
 const VIZINHOS = 5;   // olha 5 dias para tras e 5 para a frente
 const QUEDA = 0.88;   // buraco = menos de 88% do normal da casa
-function tirarDiasComBuraco(linhas) {
+function marcarDiasComBuraco(linhas) {
   const datas = [...new Set(linhas.map((l) => l.data))].sort();
   const pos = {};
   datas.forEach((d, i) => (pos[d] = i));
@@ -53,17 +53,19 @@ function tirarDiasComBuraco(linhas) {
       if (normal > 0 && serie[i] < QUEDA * normal) ruins.add(datas[i]);
     }
   }
-  return linhas.filter((l) => !ruins.has(l.data));
+  // nao jogamos o dia fora: so marcamos. O site ignora o patrimonio desses dias,
+  // mas continua somando as entradas e saidas deles (esse dinheiro existiu).
+  return linhas.map((l) => (ruins.has(l.data) ? { ...l, buraco: true } : l));
 }
 
 module.exports = async (req, res) => {
   try {
     const classe = CLASSES.includes(req.query.classe) ? req.query.classe : "Todas";
-    const p = new URLSearchParams({ select: "casa,data,patrimonio,captacao,resgate,fundos", order: "data.asc,casa.asc" });
+    const p = new URLSearchParams({ select: "casa,data,patrimonio,patrimonio_sem_dupla,captacao,resgate,fundos", order: "data.asc,casa.asc" });
     p.append("classe", `eq.${classe}`);
     const linhas = await buscarTudo(`resumo_mercado?${p}`);
     res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=7200");
-    res.status(200).json(tirarDiasComBuraco(linhas));
+    res.status(200).json(marcarDiasComBuraco(linhas));
   } catch (erro) {
     res.status(500).json({ erro: erro.message });
   }
